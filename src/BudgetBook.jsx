@@ -352,11 +352,11 @@ export default function BudgetBook() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div aria-hidden style={{
-                width: 46, height: 46, borderRadius: "50%", flexShrink: 0,
-                border: "1.5px solid rgba(240,220,168,0.75)",
-                boxShadow: "inset 0 0 0 3px rgba(240,220,168,0.16)",
+                width: 48, height: 48, borderRadius: "50%", flexShrink: 0,
+                background: "radial-gradient(circle at 36% 30%, #F7E8C1, #E7CC8F 55%, #CDA95C)",
+                boxShadow: "inset 0 0 0 2px rgba(168,127,53,0.55), inset 0 0 0 7px rgba(168,127,53,0.18), 0 2px 8px rgba(0,0,0,0.35)",
                 display: "grid", placeItems: "center",
-                fontFamily: T.serif, fontSize: 22, color: T.goldInk,
+                fontFamily: T.serif, fontSize: 25, fontWeight: 700, color: "#1E4234",
               }}>¢</div>
               <div>
                 <div style={{ fontFamily: T.sans, fontSize: 11, letterSpacing: "0.24em", textTransform: "uppercase", color: T.headerSub }}>
@@ -366,7 +366,7 @@ export default function BudgetBook() {
                   margin: "2px 0 0", fontFamily: T.serif, fontWeight: 600, fontSize: 34,
                   letterSpacing: "0.05em", textShadow: "0 1px 0 rgba(0,0,0,0.3)",
                 }}>
-                  CASH
+                  <span style={{ color: T.goldInk }}>¢</span>ASH
                 </h1>
               </div>
             </div>
