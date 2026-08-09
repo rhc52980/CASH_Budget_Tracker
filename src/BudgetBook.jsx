@@ -38,6 +38,13 @@ export default function BudgetBook() {
   const [csvPreview, setCsvPreview] = useState(null);
   const [dark, setDark] = useState(initialDark);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 640px)").matches);
+  const [updateReady, setUpdateReady] = useState(false);
+
+  useEffect(() => {
+    const onReady = () => setUpdateReady(true);
+    window.addEventListener("cash:update-ready", onReady);
+    return () => window.removeEventListener("cash:update-ready", onReady);
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
@@ -501,6 +508,25 @@ export default function BudgetBook() {
             ))}
           </nav>
         </>
+      )}
+
+      {updateReady && (
+        <div style={{
+          position: "fixed", left: "50%", transform: "translateX(-50%)",
+          bottom: isMobile ? 118 : 20, zIndex: 45,
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "10px 14px", borderRadius: 99, fontSize: 13,
+          background: T.pine, color: T.headerInk, boxShadow: T.shadow,
+          animation: "fadeUp 300ms ease both",
+        }}>
+          <span>A new version of CASH is ready.</span>
+          <button onClick={() => window.location.reload()}
+            style={{ ...btn(T.brass), padding: "6px 12px", fontSize: 13, borderRadius: 99 }}>
+            Refresh
+          </button>
+          <button onClick={() => setUpdateReady(false)} aria-label="Dismiss update notice"
+            style={{ ...btn("transparent", T.headerSub), padding: "2px 6px", fontSize: 15 }}>×</button>
+        </div>
       )}
 
       {csvPreview && (
