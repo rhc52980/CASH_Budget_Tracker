@@ -55,6 +55,11 @@ const fmt = (n) => usd.format(n || 0);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const monthKey = (d) => d.slice(0, 7); // from 'YYYY-MM-DD'
 const todayStr = () => new Date().toISOString().slice(0, 10);
+const monthDiff = (a, b) => {
+  const [ay, am] = a.split("-").map(Number);
+  const [by, bm] = b.split("-").map(Number);
+  return (by - ay) * 12 + (bm - am);
+};
 const ordinal = (n) => {
   const s = ["th", "st", "nd", "rd"], v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
@@ -109,7 +114,7 @@ function ProgressBar({ ratio, over }) {
     }}>
       <div style={{
         width: `${pct}%`, height: "100%", borderRadius: 99,
-        background: over ? T.neg : ratio > 0.85 ? T.brass : T.pos,
+        backgroundColor: over ? T.neg : ratio > 0.85 ? T.brass : T.pos,
         backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0) 60%)",
         transition: "width 400ms cubic-bezier(.22,.9,.35,1)",
       }} />
@@ -143,10 +148,119 @@ const kFmt = (v) => {
   return (v < 0 ? "−" : "") + (a >= 1000 ? `$${(a / 1000).toFixed(1)}k` : `$${a}`);
 };
 
+// ---------- CSV import ----------
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQ = false;
+      } else field += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === ",") { row.push(field); field = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(field); field = "";
+      if (row.some((c) => c.trim() !== "")) rows.push(row);
+      row = [];
+    } else field += ch;
+  }
+  row.push(field);
+  if (row.some((c) => c.trim() !== "")) rows.push(row);
+  return rows;
+}
+
+function parseCsvDate(s) {
+  s = (s || "").trim();
+  let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)))
+    return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/))) {
+    const y = m[3].length === 2 ? "20" + m[3] : m[3];
+    return `${y}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
+  }
+  return null;
+}
+
+const CAT_KEYWORDS = [
+  [/krog|walmart|wal-mart|aldi|costco|grocer|wegman|safeway|publix|trader joe|whole foods|\bheb\b|meijer|food lion/i, "Groceries"],
+  [/mcdonald|starbucks|chipotle|restaurant|pizza|taco|burger|wendy|dunkin|subway|doordash|grubhub|uber eats|cafe|diner|chick-fil|sonic|kfc|panera/i, "Dining"],
+  [/shell|exxon|chevron|\bbp\b|speedway|gas station|fuel|\buber\b|\blyft\b|parking|toll|car wash|jiffy|oil change|autozone|o'reilly/i, "Transport"],
+  [/electric|power co|water|sewer|utility|comcast|xfinity|spectrum|verizon|at&t|t-mobile|internet|duke energy|dominion/i, "Utilities"],
+  [/netflix|spotify|hulu|disney\+|hbo|paramount|prime video|youtube prem|apple\.com\/bill|subscription|patreon|audible/i, "Subscriptions"],
+  [/rent|mortgage|\bhoa\b|landlord|apartment/i, "Housing"],
+  [/cvs|walgreens|pharmacy|doctor|dental|clinic|hospital|gym|fitness|medical|optometr/i, "Health"],
+  [/amazon|amzn|target|best buy|ebay|etsy|clothing|shoe|home depot|lowe's|lowes|marshalls|tj maxx/i, "Shopping"],
+  [/movie|cinema|theater|steam|playstation|xbox|nintendo|ticketmaster|concert|bowling/i, "Entertainment"],
+];
+
+function guessCategory(desc, isIncome) {
+  if (isIncome) return /payroll|salary|direct dep|paycheck|\bdd\b/i.test(desc) ? "Salary" : "Other income";
+  for (const [re, cat] of CAT_KEYWORDS) if (re.test(desc)) return cat;
+  return "Other";
+}
+
+function buildCsvPreview(text, existingTx) {
+  const grid = parseCsv(text);
+  if (grid.length < 2) return { error: "Couldn't find any data rows in that file." };
+
+  const header = grid[0].map((h) => h.toLowerCase().trim());
+  const find = (re) => header.findIndex((h) => re.test(h));
+  let iDate = find(/date/);
+  let iDesc = find(/desc|memo|payee|merchant|name|detail/);
+  let iAmt = find(/amount|^amt$/);
+  const iDebit = find(/debit|withdraw/);
+  const iCredit = find(/credit|deposit/);
+  let dataRows = grid.slice(1);
+
+  if (iDate === -1) {
+    // No recognizable header — treat every row as data and sniff the columns
+    dataRows = grid;
+    const sample = grid[0];
+    iDate = sample.findIndex((c) => parseCsvDate(c));
+    iAmt = sample.findIndex((c, j) => j !== iDate && c.trim() !== "" && !isNaN(parseFloat(c.replace(/[$,]/g, ""))));
+    iDesc = sample.findIndex((c, j) => j !== iDate && j !== iAmt && c.trim() !== "" && isNaN(parseFloat(c.replace(/[$,]/g, ""))));
+  }
+  if (iDate === -1 || (iAmt === -1 && iDebit === -1 && iCredit === -1)) {
+    return { error: "Couldn't detect the date and amount columns. The file needs headers like Date, Description, and Amount (or Debit/Credit)." };
+  }
+
+  const dupKeys = new Set(existingTx.map((t) => `${t.date}|${t.amount.toFixed(2)}|${t.type}`));
+  const rows = [];
+  dataRows.forEach((r) => {
+    const date = parseCsvDate(r[iDate]);
+    if (!date) return;
+    let amount = null, type = "expense";
+    if (iDebit !== -1 || iCredit !== -1) {
+      const deb = iDebit !== -1 ? parseFloat((r[iDebit] || "").replace(/[$,()]/g, "")) : NaN;
+      const cred = iCredit !== -1 ? parseFloat((r[iCredit] || "").replace(/[$,()]/g, "")) : NaN;
+      if (deb > 0) { amount = deb; type = "expense"; }
+      else if (cred > 0) { amount = cred; type = "income"; }
+    } else {
+      const raw = (r[iAmt] || "").trim();
+      const v = parseFloat(raw.replace(/[$,()]/g, ""));
+      if (isNaN(v) || v === 0) return;
+      type = (/^\(.*\)$/.test(raw) || v < 0) ? "expense" : "income";
+      amount = Math.abs(v);
+    }
+    if (!amount) return;
+    const note = (iDesc !== -1 ? r[iDesc] || "" : "").trim().slice(0, 80);
+    const dup = dupKeys.has(`${date}|${amount.toFixed(2)}|${type}`);
+    rows.push({ date, amount, type, note, category: guessCategory(note, type === "income"), dup, include: !dup });
+  });
+
+  if (!rows.length) return { error: "No usable rows found — check that the file has date and amount values." };
+  return { rows };
+}
+
 // ---------- Main app ----------
 export default function BudgetBook() {
   const [data, setData] = useState({
     transactions: [], budgets: {}, goals: [], bills: [], billPaid: {}, incomes: [], incomePaid: {},
+    budgetRollover: {},
   });
   const [loaded, setLoaded] = useState(false);
   const [month, setMonth] = useState(monthKey(todayStr()));
@@ -154,6 +268,7 @@ export default function BudgetBook() {
   const [showAdd, setShowAdd] = useState(false);
   const [trendRange, setTrendRange] = useState(6);
   const [trendKind, setTrendKind] = useState("flow");
+  const [csvPreview, setCsvPreview] = useState(null);
 
   // Load once
   useEffect(() => {
@@ -161,6 +276,7 @@ export default function BudgetBook() {
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) setData({
         transactions: [], budgets: {}, goals: [], bills: [], billPaid: {}, incomes: [], incomePaid: {},
+        budgetRollover: {},
         ...JSON.parse(raw),
       });
     } catch (e) {
@@ -192,6 +308,79 @@ export default function BudgetBook() {
     });
     return m;
   }, [monthTx]);
+
+  // Short observations about the viewed month, shown on the overview
+  const insights = useMemo(() => {
+    const out = [];
+    // Category spending vs the average of up to 6 prior months with activity
+    const catPrev = {};
+    let activeMonths = 0;
+    for (let i = 1; i <= 6; i++) {
+      const ym = shiftMonth(month, -i);
+      const txs = data.transactions.filter((t) => t.type === "expense" && monthKey(t.date) === ym);
+      if (!txs.length) continue;
+      activeMonths++;
+      txs.forEach((t) => { catPrev[t.category] = (catPrev[t.category] || 0) + t.amount; });
+    }
+    if (activeMonths >= 2) {
+      const deviations = Object.entries(spentByCat)
+        .map(([cat, amt]) => {
+          const avg = (catPrev[cat] || 0) / activeMonths;
+          return { cat, amt, avg, ratio: avg > 0 ? amt / avg : null };
+        })
+        .filter((d) => d.avg >= 20 && d.ratio !== null && (d.ratio >= 1.25 || d.ratio <= 0.6))
+        .sort((a, b) => Math.abs(b.ratio - 1) - Math.abs(a.ratio - 1))
+        .slice(0, 2);
+      deviations.forEach((d) => {
+        out.push(d.ratio >= 1.25
+          ? `${d.cat} is ${Math.round((d.ratio - 1) * 100)}% above your ${activeMonths}-month average of ${fmt(d.avg)}.`
+          : `${d.cat} is well below your ${activeMonths}-month average of ${fmt(d.avg)} — nice.`);
+      });
+    }
+    // Pace projection, only for the real current month and once it's underway
+    if (month === monthKey(todayStr()) && expenses > 0) {
+      const day = Number(todayStr().slice(8, 10));
+      const [y, m] = month.split("-").map(Number);
+      const daysInMonth = new Date(y, m, 0).getDate();
+      if (day >= 5 && day < daysInMonth) {
+        out.push(`At this pace you'll spend about ${fmt((expenses / day) * daysInMonth)} by month's end.`);
+      }
+    }
+    const biggest = monthTx.filter((t) => t.type === "expense").sort((a, b) => b.amount - a.amount)[0];
+    if (biggest) {
+      out.push(`Largest expense: ${fmt(biggest.amount)} on ${biggest.category}${biggest.note ? ` (${biggest.note})` : ""}.`);
+    }
+    if (income > 0) {
+      const rate = Math.round((net / income) * 100);
+      out.push(rate >= 0
+        ? `You kept ${rate}% of what you earned this month.`
+        : `You spent ${Math.abs(rate)}% more than you earned this month.`);
+    }
+    return out.slice(0, 5);
+  }, [data.transactions, month, spentByCat, expenses, income, net, monthTx]);
+
+  // Surplus (or deficit) carried into the viewed month for categories with
+  // rollover on. Accrues from the first recorded transaction, capped at 24
+  // months back, using the current budget amount for every month.
+  const carryByCat = useMemo(() => {
+    const carry = {};
+    const txMonths = data.transactions.map((t) => monthKey(t.date));
+    const firstYm = txMonths.length ? txMonths.reduce((a, b) => (a < b ? a : b)) : null;
+    EXPENSE_CATS.forEach((cat) => {
+      const base = data.budgets[cat] || 0;
+      if (!data.budgetRollover[cat] || base <= 0 || !firstYm) { carry[cat] = 0; return; }
+      const span = Math.min(24, monthDiff(firstYm, month));
+      let c = 0;
+      for (let i = span; i >= 1; i--) {
+        const ym = shiftMonth(month, -i);
+        const spent = data.transactions.reduce((s, t) =>
+          (t.type === "expense" && t.category === cat && monthKey(t.date) === ym) ? s + t.amount : s, 0);
+        c += base - spent;
+      }
+      carry[cat] = c;
+    });
+    return carry;
+  }, [data.transactions, data.budgets, data.budgetRollover, month]);
 
   // Rows for the trend chart over the selected range, ending at the viewed
   // month. Spending is folded to the top 5 categories + "All else" so the
@@ -228,12 +417,15 @@ export default function BudgetBook() {
     return { trendRows: rows, trendCats: hasRest ? [...top, "All else"] : top };
   }, [data.transactions, month, trendRange]);
 
-  const addTx = (tx) => setData((d) => ({ ...d, transactions: [...d.transactions, tx] }));
+  const addTxs = (txs) => setData((d) => ({ ...d, transactions: [...d.transactions, ...txs] }));
   const deleteTx = (id) => setData((d) => ({ ...d, transactions: d.transactions.filter((t) => t.id !== id) }));
   const updateTx = (id, patch) => setData((d) => ({
     ...d, transactions: d.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
   }));
   const setBudget = (cat, amt) => setData((d) => ({ ...d, budgets: { ...d.budgets, [cat]: amt } }));
+  const toggleRollover = (cat) => setData((d) => ({
+    ...d, budgetRollover: { ...d.budgetRollover, [cat]: !d.budgetRollover[cat] },
+  }));
   const addGoal = (g) => setData((d) => ({ ...d, goals: [...d.goals, g] }));
   const fundGoal = (id, amt) => setData((d) => ({
     ...d, goals: d.goals.map((g) => (g.id === id ? { ...g, saved: g.saved + amt } : g)),
@@ -313,6 +505,16 @@ export default function BudgetBook() {
     URL.revokeObjectURL(url);
   };
 
+  const importCsv = (file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const res = buildCsvPreview(String(reader.result), data.transactions);
+      if (res.error) window.alert(res.error);
+      else setCsvPreview(res);
+    };
+    reader.readAsText(file);
+  };
+
   const importData = (file) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -322,6 +524,7 @@ export default function BudgetBook() {
         if (window.confirm("Replace your current ledger with this backup? All existing data will be overwritten.")) {
           setData({
             transactions: [], budgets: {}, goals: [], bills: [], billPaid: {}, incomes: [], incomePaid: {},
+            budgetRollover: {},
             ...parsed,
           });
         }
@@ -448,6 +651,15 @@ export default function BudgetBook() {
                 e.target.value = "";
               }} />
           </label>
+          <label title="Import transactions from a bank CSV export"
+            style={{ ...btn(T.card, T.mute), border: `1px solid ${T.line}`, borderRadius: 99, display: "inline-block" }}>
+            Import CSV
+            <input type="file" accept=".csv,text/csv" style={{ display: "none" }}
+              onChange={(e) => {
+                if (e.target.files[0]) importCsv(e.target.files[0]);
+                e.target.value = "";
+              }} />
+          </label>
           <button onClick={() => setShowAdd((s) => !s)} style={{
             ...btn(T.brass), borderRadius: 99,
             boxShadow: "0 6px 14px -8px rgba(185,138,47,0.7)",
@@ -456,14 +668,14 @@ export default function BudgetBook() {
           </button>
         </div>
 
-        {showAdd && <AddEntry onAdd={(tx) => { addTx(tx); setShowAdd(false); }} />}
+        {showAdd && <AddEntry onAdd={(txs) => { addTxs(txs); setShowAdd(false); }} />}
 
         {tab === "overview" && (
           <Overview spentByCat={spentByCat} budgets={data.budgets}
             trendRows={trendRows} trendCats={trendCats}
             trendKind={trendKind} setTrendKind={setTrendKind}
             trendRange={trendRange} setTrendRange={setTrendRange}
-            monthTx={monthTx} expenses={expenses} />
+            monthTx={monthTx} expenses={expenses} insights={insights} />
         )}
         {tab === "bills" && (
           <Bills bills={data.bills} month={month} paidMap={data.billPaid[month] || {}}
@@ -474,7 +686,8 @@ export default function BudgetBook() {
             markIncome={markIncomeReceived} unmarkIncome={unmarkIncomeReceived} />
         )}
         {tab === "budgets" && (
-          <Budgets budgets={data.budgets} spentByCat={spentByCat} setBudget={setBudget} />
+          <Budgets budgets={data.budgets} spentByCat={spentByCat} setBudget={setBudget}
+            rollover={data.budgetRollover} toggleRollover={toggleRollover} carryByCat={carryByCat} />
         )}
         {tab === "goals" && (
           <Goals goals={data.goals} addGoal={addGoal} fundGoal={fundGoal} deleteGoal={deleteGoal} />
@@ -483,6 +696,84 @@ export default function BudgetBook() {
           <Transactions monthTx={monthTx} deleteTx={deleteTx} updateTx={updateTx} />
         )}
       </div>
+
+      {csvPreview && (
+        <CsvImportModal preview={csvPreview}
+          onConfirm={(rows) => {
+            addTxs(rows.map((r) => ({
+              id: uid(), type: r.type, amount: r.amount, category: r.category, date: r.date, note: r.note,
+            })));
+            setCsvPreview(null);
+          }}
+          onClose={() => setCsvPreview(null)} />
+      )}
+    </div>
+  );
+}
+
+// ---------- CSV import preview ----------
+function CsvImportModal({ preview, onConfirm, onClose }) {
+  const [rows, setRows] = useState(preview.rows);
+  const setRow = (i, patch) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const included = rows.filter((r) => r.include);
+  // Some banks export expenses as positive numbers; one click fixes the whole file
+  const swapAll = () => setRows((rs) => rs.map((r) => {
+    const type = r.type === "income" ? "expense" : "income";
+    return { ...r, type, category: guessCategory(r.note, type === "income") };
+  }));
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(24,52,41,0.45)", zIndex: 50,
+      display: "grid", placeItems: "center", padding: 16,
+    }}>
+      <Card style={{ width: "min(780px, 100%)", maxHeight: "86vh", display: "flex", flexDirection: "column" }}>
+        <SectionTitle right={
+          <button onClick={swapAll} style={pill(false)} title="Use this if expenses came in as income (or vice versa)">
+            Swap income/expense
+          </button>
+        }>Import from CSV</SectionTitle>
+        <p style={{ margin: "0 0 10px", fontSize: 13, color: T.mute }}>
+          {rows.length} {rows.length === 1 ? "row" : "rows"} found. Rows that look like duplicates
+          of existing entries start unchecked. Adjust categories, then import.
+        </p>
+        <div style={{ overflowY: "auto", flex: 1, minHeight: 0, border: `1px solid ${T.line}`, borderRadius: 10, padding: "0 10px" }}>
+          {rows.map((r, i) => (
+            <div key={i} style={{
+              display: "flex", gap: 8, alignItems: "center", padding: "8px 0",
+              borderTop: i ? `1px solid ${T.line}` : "none", fontSize: 13,
+              opacity: r.include ? 1 : 0.55,
+            }}>
+              <input type="checkbox" checked={r.include}
+                onChange={(e) => setRow(i, { include: e.target.checked })} style={{ accentColor: T.pine }} />
+              <span style={{ width: 76, color: T.mute, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{r.date}</span>
+              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {r.note || "(no description)"}
+                {r.dup && <span style={{ color: T.brass }}> · duplicate?</span>}
+              </span>
+              <span style={{
+                fontVariantNumeric: "tabular-nums", fontWeight: 600, width: 82, textAlign: "right",
+                color: r.type === "income" ? T.pos : T.ink, flexShrink: 0,
+              }}>
+                {r.type === "income" ? "+" : "−"}{fmt(r.amount)}
+              </span>
+              <select value={r.category} onChange={(e) => setRow(i, { category: e.target.value })}
+                style={{ ...inputStyle, width: 132, padding: "5px 8px", fontSize: 13, flexShrink: 0 }}>
+                {(r.type === "income" ? INCOME_CATS : EXPENSE_CATS).map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
+          <span style={{ fontSize: 13, color: T.mute }}>{included.length} selected</span>
+          <div style={{ flex: 1 }} />
+          <button onClick={onClose} style={btn(T.paper, T.mute)}>Cancel</button>
+          <button onClick={() => included.length && onConfirm(included)}
+            style={{ ...btn(T.brass), opacity: included.length ? 1 : 0.5 }}>
+            Import {included.length} {included.length === 1 ? "entry" : "entries"}
+          </button>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -495,20 +786,36 @@ function AddEntry({ onAdd }) {
   const [date, setDate] = useState(todayStr());
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
+  // null = normal entry; an array = one receipt split across categories
+  const [splits, setSplits] = useState(null);
 
   const cats = type === "expense" ? EXPENSE_CATS : INCOME_CATS;
 
   const submit = () => {
+    if (!date) { setErr("Pick a date."); return; }
+    if (splits) {
+      const lines = splits.map((s) => ({ ...s, amt: parseFloat(s.amount) }));
+      if (lines.some((s) => !s.amt || s.amt <= 0)) { setErr("Every split line needs an amount greater than zero."); return; }
+      onAdd(lines.map((s) => ({ id: uid(), type, amount: s.amt, category: s.category, date, note: note.trim() })));
+      return;
+    }
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) { setErr("Enter an amount greater than zero."); return; }
-    if (!date) { setErr("Pick a date."); return; }
-    onAdd({ id: uid(), type, amount: amt, category, date, note: note.trim() });
+    onAdd([{ id: uid(), type, amount: amt, category, date, note: note.trim() }]);
   };
 
   const switchType = (t) => {
     setType(t);
     setCategory(t === "expense" ? EXPENSE_CATS[1] : INCOME_CATS[0]);
+    setSplits(null);
   };
+
+  const startSplit = () => setSplits([
+    { category, amount },
+    { category: EXPENSE_CATS.find((c) => c !== category) || category, amount: "" },
+  ]);
+  const setSplit = (i, patch) => setSplits((s) => s.map((line, j) => (j === i ? { ...line, ...patch } : line)));
+  const splitTotal = splits ? splits.reduce((s, line) => s + (parseFloat(line.amount) || 0), 0) : 0;
 
   return (
     <Card style={{ marginTop: 14, borderColor: T.brass, background: "#FDFBF5" }}>
@@ -517,7 +824,55 @@ function AddEntry({ onAdd }) {
           style={btn(type === "expense" ? T.neg : T.paper, type === "expense" ? "#fff" : T.mute)}>Expense</button>
         <button onClick={() => switchType("income")}
           style={btn(type === "income" ? T.pos : T.paper, type === "income" ? "#fff" : T.mute)}>Income</button>
+        <div style={{ flex: 1 }} />
+        {type === "expense" && !splits && (
+          <button onClick={startSplit} style={{ ...btn("transparent", T.mute), border: `1px solid ${T.line}`, borderRadius: 99, fontSize: 13 }}>
+            Split across categories
+          </button>
+        )}
       </div>
+
+      {splits ? (
+        <div style={{ display: "grid", gap: 8 }}>
+          {splits.map((line, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <select value={line.category} onChange={(e) => setSplit(i, { category: e.target.value })}
+                style={{ ...inputStyle, width: 160 }}>
+                {EXPENSE_CATS.map((c) => <option key={c}>{c}</option>)}
+              </select>
+              <input type="number" min="0" step="0.01" value={line.amount} placeholder="0.00"
+                onChange={(e) => { setSplit(i, { amount: e.target.value }); setErr(""); }}
+                style={{ ...inputStyle, width: 120 }} />
+              {splits.length > 2 && (
+                <button onClick={() => setSplits((s) => s.filter((_, j) => j !== i))}
+                  aria-label="Remove split line"
+                  style={{ ...btn("transparent", T.mute), padding: "4px 8px", fontSize: 16 }}>×</button>
+              )}
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <button onClick={() => setSplits((s) => [...s, { category: EXPENSE_CATS[0], amount: "" }])}
+              style={{ ...btn("transparent", T.mute), border: `1px solid ${T.line}`, borderRadius: 99, fontSize: 13 }}>
+              + Add line
+            </button>
+            <button onClick={() => setSplits(null)}
+              style={{ ...btn("transparent", T.mute), fontSize: 13 }}>Cancel split</button>
+            <div style={{ flex: 1 }} />
+            <span style={{ fontSize: 13, color: T.mute, fontVariantNumeric: "tabular-nums" }}>
+              Total {fmt(splitTotal)}
+            </span>
+          </div>
+          <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+            <label style={{ fontSize: 12, color: T.mute }}>Date
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...inputStyle, marginTop: 4 }} />
+            </label>
+            <label style={{ fontSize: 12, color: T.mute }}>Note (optional, shared by all lines)
+              <input value={note} placeholder="e.g. Costco run" onChange={(e) => setNote(e.target.value)}
+                style={{ ...inputStyle, marginTop: 4 }} />
+            </label>
+          </div>
+        </div>
+      ) : (
       <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
         <label style={{ fontSize: 12, color: T.mute }}>Amount
           <input type="number" min="0" step="0.01" value={amount} placeholder="0.00"
@@ -536,9 +891,12 @@ function AddEntry({ onAdd }) {
             style={{ ...inputStyle, marginTop: 4 }} />
         </label>
       </div>
+      )}
       {err && <div style={{ color: T.neg, fontSize: 13, marginTop: 8 }}>{err}</div>}
       <div style={{ marginTop: 12 }}>
-        <button onClick={submit} style={btn(T.ink)}>Save entry</button>
+        <button onClick={submit} style={btn(T.ink)}>
+          {splits ? `Save ${splits.length} entries` : "Save entry"}
+        </button>
       </div>
     </Card>
   );
@@ -547,7 +905,7 @@ function AddEntry({ onAdd }) {
 // ---------- Overview ----------
 function Overview({
   spentByCat, budgets, trendRows, trendCats, trendKind, setTrendKind,
-  trendRange, setTrendRange, monthTx, expenses,
+  trendRange, setTrendRange, monthTx, expenses, insights,
 }) {
   const pieData = Object.entries(spentByCat)
     .map(([name, value]) => ({ name, value }))
@@ -647,6 +1005,20 @@ function Overview({
           </ResponsiveContainer>
         </div>
       </Card>
+
+      {insights.length > 0 && (
+        <Card style={{ gridColumn: "1 / -1", background: "#FDFBF5" }}>
+          <SectionTitle>Ledger notes</SectionTitle>
+          <div style={{ display: "grid", gap: 8 }}>
+            {insights.map((line) => (
+              <div key={line} style={{ display: "flex", gap: 9, fontSize: 14, alignItems: "baseline" }}>
+                <span aria-hidden style={{ color: T.brass, fontSize: 12, flexShrink: 0 }}>✦</span>
+                <span>{line}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card style={{ gridColumn: "1 / -1" }}>
         <SectionTitle>Recent entries</SectionTitle>
@@ -863,33 +1235,52 @@ function IncomeSection({ incomes, month, paidMap, transactions, addIncome, delet
 }
 
 // ---------- Budgets ----------
-function Budgets({ budgets, spentByCat, setBudget }) {
+function Budgets({ budgets, spentByCat, setBudget, rollover, toggleRollover, carryByCat }) {
   return (
     <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
       <Card>
         <SectionTitle>Monthly budgets by category</SectionTitle>
         <p style={{ margin: "0 0 14px", fontSize: 13, color: T.mute }}>
           Set a limit for each category. The bar shows this month's spending against it.
+          Turn on roll over to carry unspent budget into the next month (overspending
+          carries too) — handy for saving up in a category like car repairs.
         </p>
         <div style={{ display: "grid", gap: 14 }}>
           {EXPENSE_CATS.map((cat) => {
             const budget = budgets[cat] || 0;
+            const carry = rollover[cat] ? (carryByCat[cat] || 0) : 0;
+            const effective = Math.max(budget + carry, 0);
             const spent = spentByCat[cat] || 0;
-            const over = budget > 0 && spent > budget;
+            const over = budget > 0 && spent > effective;
             return (
               <div key={cat}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
                   <span style={{ width: 10, height: 10, borderRadius: 3, background: CAT_COLORS[cat] }} />
                   <span style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>{cat}</span>
                   <span style={{ fontSize: 13, color: over ? T.neg : T.mute, fontVariantNumeric: "tabular-nums" }}>
-                    {fmt(spent)}{budget > 0 && <> of {fmt(budget)}{over && " — over"}</>}
+                    {fmt(spent)}{budget > 0 && <> of {fmt(effective)}{over && " — over"}</>}
                   </span>
+                  <label style={{
+                    display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: T.mute,
+                    cursor: "pointer", userSelect: "none",
+                  }}>
+                    <input type="checkbox" checked={!!rollover[cat]} onChange={() => toggleRollover(cat)}
+                      style={{ accentColor: T.pine }} />
+                    roll over
+                  </label>
                   <input type="number" min="0" step="10" placeholder="Set limit"
                     value={budget || ""}
                     onChange={(e) => setBudget(cat, parseFloat(e.target.value) || 0)}
                     style={{ ...inputStyle, width: 110 }} />
                 </div>
-                {budget > 0 && <ProgressBar ratio={spent / budget} over={over} />}
+                {budget > 0 && rollover[cat] && carry !== 0 && (
+                  <div style={{ fontSize: 12, color: carry > 0 ? T.pos : T.neg, marginBottom: 5 }}>
+                    {carry > 0
+                      ? `${fmt(carry)} carried in from earlier months`
+                      : `${fmt(Math.abs(carry))} borrowed from earlier overspending`}
+                  </div>
+                )}
+                {budget > 0 && <ProgressBar ratio={effective > 0 ? spent / effective : 1} over={over} />}
               </div>
             );
           })}
