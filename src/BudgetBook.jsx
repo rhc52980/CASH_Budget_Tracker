@@ -206,6 +206,32 @@ export default function BudgetBook() {
     };
   });
 
+  const exportData = () => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cash-backup-${todayStr()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importData = (file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        if (!parsed || !Array.isArray(parsed.transactions)) throw new Error("bad shape");
+        if (window.confirm("Replace your current ledger with this backup? All existing data will be overwritten.")) {
+          setData({ transactions: [], budgets: {}, goals: [], bills: [], billPaid: {}, ...parsed });
+        }
+      } catch {
+        window.alert("That file doesn't look like a CASH backup.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
   if (!loaded) {
     return (
       <div style={{ minHeight: "100vh", background: T.paper, display: "grid", placeItems: "center", fontFamily: T.serif, color: T.mute }}>
@@ -280,6 +306,17 @@ export default function BudgetBook() {
             }}>{label}</button>
           ))}
           <div style={{ flex: 1 }} />
+          <button onClick={exportData} title="Download a JSON backup of all your data"
+            style={{ ...btn("transparent", T.mute), border: `1px solid ${T.line}` }}>Export</button>
+          <label title="Restore from a JSON backup"
+            style={{ ...btn("transparent", T.mute), border: `1px solid ${T.line}`, display: "inline-block" }}>
+            Import
+            <input type="file" accept=".json,application/json" style={{ display: "none" }}
+              onChange={(e) => {
+                if (e.target.files[0]) importData(e.target.files[0]);
+                e.target.value = "";
+              }} />
+          </label>
           <button onClick={() => setShowAdd((s) => !s)} style={btn(T.brass)}>
             {showAdd ? "Close" : "+ Add entry"}
           </button>

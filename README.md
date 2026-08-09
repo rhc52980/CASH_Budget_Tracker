@@ -23,3 +23,4 @@ Then open http://localhost:5173.
 - **Budgets** — monthly limit per category with progress bars and over-budget warnings
 - **Goals** — savings goals you can fund incrementally
 - **Transactions** — full monthly ledger with delete
+- **Export / Import** — download all data as a JSON backup, or restore from one
