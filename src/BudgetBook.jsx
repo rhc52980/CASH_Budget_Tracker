@@ -145,7 +145,9 @@ const kFmt = (v) => {
 
 // ---------- Main app ----------
 export default function BudgetBook() {
-  const [data, setData] = useState({ transactions: [], budgets: {}, goals: [], bills: [], billPaid: {} });
+  const [data, setData] = useState({
+    transactions: [], budgets: {}, goals: [], bills: [], billPaid: {}, incomes: [], incomePaid: {},
+  });
   const [loaded, setLoaded] = useState(false);
   const [month, setMonth] = useState(monthKey(todayStr()));
   const [tab, setTab] = useState("overview");
@@ -157,7 +159,10 @@ export default function BudgetBook() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORE_KEY);
-      if (raw) setData({ transactions: [], budgets: {}, goals: [], bills: [], billPaid: {}, ...JSON.parse(raw) });
+      if (raw) setData({
+        transactions: [], budgets: {}, goals: [], bills: [], billPaid: {}, incomes: [], incomePaid: {},
+        ...JSON.parse(raw),
+      });
     } catch (e) {
       // No saved data yet - start fresh
     }
@@ -225,6 +230,9 @@ export default function BudgetBook() {
 
   const addTx = (tx) => setData((d) => ({ ...d, transactions: [...d.transactions, tx] }));
   const deleteTx = (id) => setData((d) => ({ ...d, transactions: d.transactions.filter((t) => t.id !== id) }));
+  const updateTx = (id, patch) => setData((d) => ({
+    ...d, transactions: d.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+  }));
   const setBudget = (cat, amt) => setData((d) => ({ ...d, budgets: { ...d.budgets, [cat]: amt } }));
   const addGoal = (g) => setData((d) => ({ ...d, goals: [...d.goals, g] }));
   const fundGoal = (id, amt) => setData((d) => ({
@@ -264,6 +272,37 @@ export default function BudgetBook() {
     };
   });
 
+  const addIncome = (inc) => setData((d) => ({ ...d, incomes: [...d.incomes, inc] }));
+  const deleteIncome = (id) => setData((d) => {
+    const incomePaid = {};
+    Object.entries(d.incomePaid).forEach(([ym, m]) => {
+      const { [id]: _, ...rest } = m;
+      incomePaid[ym] = rest;
+    });
+    return { ...d, incomes: d.incomes.filter((x) => x.id !== id), incomePaid };
+  });
+  const markIncomeReceived = (inc) => setData((d) => {
+    const tx = {
+      id: uid(), type: "income", amount: inc.amount, category: inc.category,
+      date: dueDateInMonth(month, inc.payDay), note: inc.name, incomeId: inc.id,
+    };
+    return {
+      ...d,
+      transactions: [...d.transactions, tx],
+      incomePaid: { ...d.incomePaid, [month]: { ...(d.incomePaid[month] || {}), [inc.id]: tx.id } },
+    };
+  });
+  const unmarkIncomeReceived = (inc) => setData((d) => {
+    const monthMap = { ...(d.incomePaid[month] || {}) };
+    const txId = monthMap[inc.id];
+    delete monthMap[inc.id];
+    return {
+      ...d,
+      transactions: d.transactions.filter((t) => t.id !== txId),
+      incomePaid: { ...d.incomePaid, [month]: monthMap },
+    };
+  });
+
   const exportData = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -281,7 +320,10 @@ export default function BudgetBook() {
         const parsed = JSON.parse(reader.result);
         if (!parsed || !Array.isArray(parsed.transactions)) throw new Error("bad shape");
         if (window.confirm("Replace your current ledger with this backup? All existing data will be overwritten.")) {
-          setData({ transactions: [], budgets: {}, goals: [], bills: [], billPaid: {}, ...parsed });
+          setData({
+            transactions: [], budgets: {}, goals: [], bills: [], billPaid: {}, incomes: [], incomePaid: {},
+            ...parsed,
+          });
         }
       } catch {
         window.alert("That file doesn't look like a CASH backup.");
@@ -426,7 +468,10 @@ export default function BudgetBook() {
         {tab === "bills" && (
           <Bills bills={data.bills} month={month} paidMap={data.billPaid[month] || {}}
             transactions={data.transactions} addBill={addBill} deleteBill={deleteBill}
-            markPaid={markBillPaid} unmarkPaid={unmarkBillPaid} />
+            markPaid={markBillPaid} unmarkPaid={unmarkBillPaid}
+            incomes={data.incomes} incomePaidMap={data.incomePaid[month] || {}}
+            addIncome={addIncome} deleteIncome={deleteIncome}
+            markIncome={markIncomeReceived} unmarkIncome={unmarkIncomeReceived} />
         )}
         {tab === "budgets" && (
           <Budgets budgets={data.budgets} spentByCat={spentByCat} setBudget={setBudget} />
@@ -435,7 +480,7 @@ export default function BudgetBook() {
           <Goals goals={data.goals} addGoal={addGoal} fundGoal={fundGoal} deleteGoal={deleteGoal} />
         )}
         {tab === "transactions" && (
-          <Transactions monthTx={monthTx} deleteTx={deleteTx} />
+          <Transactions monthTx={monthTx} deleteTx={deleteTx} updateTx={updateTx} />
         )}
       </div>
     </div>
@@ -614,7 +659,10 @@ function Overview({
 }
 
 // ---------- Bills ----------
-function Bills({ bills, month, paidMap, transactions, addBill, deleteBill, markPaid, unmarkPaid }) {
+function Bills({
+  bills, month, paidMap, transactions, addBill, deleteBill, markPaid, unmarkPaid,
+  incomes, incomePaidMap, addIncome, deleteIncome, markIncome, unmarkIncome,
+}) {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(EXPENSE_CATS[0]);
@@ -715,7 +763,102 @@ function Bills({ bills, month, paidMap, transactions, addBill, deleteBill, markP
           })}
         </Card>
       )}
+
+      <IncomeSection incomes={incomes} month={month} paidMap={incomePaidMap}
+        transactions={transactions} addIncome={addIncome} deleteIncome={deleteIncome}
+        markIncome={markIncome} unmarkIncome={unmarkIncome} />
     </div>
+  );
+}
+
+// ---------- Expected income ----------
+function IncomeSection({ incomes, month, paidMap, transactions, addIncome, deleteIncome, markIncome, unmarkIncome }) {
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState(INCOME_CATS[0]);
+  const [payDay, setPayDay] = useState("1");
+  const [err, setErr] = useState("");
+
+  const txIds = useMemo(() => new Set(transactions.map((t) => t.id)), [transactions]);
+  const isReceived = (x) => Boolean(paidMap[x.id] && txIds.has(paidMap[x.id]));
+
+  const create = () => {
+    const amt = parseFloat(amount);
+    const day = parseInt(payDay, 10);
+    if (!name.trim()) { setErr("Give it a name — e.g. Paycheck."); return; }
+    if (!amt || amt <= 0) { setErr("Enter an amount greater than zero."); return; }
+    if (!day || day < 1 || day > 31) { setErr("Pay day must be between 1 and 31."); return; }
+    addIncome({ id: uid(), name: name.trim(), amount: amt, category, payDay: day });
+    setName(""); setAmount(""); setPayDay("1"); setErr("");
+  };
+
+  const sorted = [...incomes].sort((a, b) => a.payDay - b.payDay);
+  const total = sorted.reduce((s, x) => s + x.amount, 0);
+  const receivedTotal = sorted.filter(isReceived).reduce((s, x) => s + x.amount, 0);
+
+  return (
+    <>
+      <Card style={{ background: "#F5FAF6", borderColor: T.pos }}>
+        <SectionTitle>Add expected income</SectionTitle>
+        <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
+          <input value={name} placeholder="Name — e.g. Paycheck"
+            onChange={(e) => { setName(e.target.value); setErr(""); }} style={inputStyle} />
+          <input type="number" min="0" step="0.01" value={amount} placeholder="Amount"
+            onChange={(e) => { setAmount(e.target.value); setErr(""); }} style={inputStyle} />
+          <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
+            {INCOME_CATS.map((c) => <option key={c}>{c}</option>)}
+          </select>
+          <input type="number" min="1" max="31" value={payDay} placeholder="Pay day (1–31)"
+            onChange={(e) => { setPayDay(e.target.value); setErr(""); }} style={inputStyle} />
+          <button onClick={create} style={btn(T.pos)}>Add income</button>
+        </div>
+        {err && <div style={{ color: T.neg, fontSize: 13, marginTop: 8 }}>{err}</div>}
+      </Card>
+
+      {sorted.length === 0 ? (
+        <Empty text="No expected income yet. Add your paycheck and check it off each month when it lands." card />
+      ) : (
+        <Card>
+          <SectionTitle right={
+            <span style={{ fontSize: 13, color: T.mute, fontVariantNumeric: "tabular-nums" }}>
+              {fmt(receivedTotal)} received of {fmt(total)}
+            </span>
+          }>Expected income for {monthLabel(month)}</SectionTitle>
+          <div style={{ margin: "2px 0 14px" }}>
+            <ProgressBar ratio={total ? receivedTotal / total : 0} over={false} />
+          </div>
+          {sorted.map((x, i) => {
+            const received = isReceived(x);
+            return (
+              <div key={x.id} style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 2px",
+                borderTop: i ? `1px solid ${T.line}` : "none", fontSize: 14,
+                opacity: received ? 0.65 : 1,
+              }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, flexShrink: 0, background: T.pos }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600 }}>{x.name}</div>
+                  <div style={{ fontSize: 12, color: T.mute }}>
+                    {x.category} · arrives the {ordinal(x.payDay)}
+                  </div>
+                </div>
+                <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600, minWidth: 80, textAlign: "right", color: T.pos }}>
+                  +{fmt(x.amount)}
+                </span>
+                <button onClick={() => (received ? unmarkIncome(x) : markIncome(x))}
+                  style={received
+                    ? { ...btn(T.paper, T.pos), border: `1px solid ${T.line}` }
+                    : btn(T.pos)}>
+                  {received ? "Received ✓" : "Mark received"}
+                </button>
+                <button onClick={() => deleteIncome(x.id)} aria-label={`Delete ${x.name} income`}
+                  style={{ ...btn("transparent", T.mute), padding: "4px 8px", fontSize: 16 }}>×</button>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+    </>
   );
 }
 
@@ -823,21 +966,59 @@ function Goals({ goals, addGoal, fundGoal, deleteGoal }) {
 }
 
 // ---------- Transactions ----------
-function Transactions({ monthTx, deleteTx }) {
+function Transactions({ monthTx, deleteTx, updateTx }) {
+  const [q, setQ] = useState("");
+  const [ftype, setFtype] = useState("all");
+  const [fcat, setFcat] = useState("all");
+
+  const list = monthTx.filter((t) => {
+    if (ftype !== "all" && t.type !== ftype) return false;
+    if (fcat !== "all" && t.category !== fcat) return false;
+    if (q && !(t.category + " " + (t.note || "")).toLowerCase().includes(q.toLowerCase())) return false;
+    return true;
+  });
+  const filtering = q !== "" || ftype !== "all" || fcat !== "all";
+  const net = list.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+
   return (
     <Card style={{ marginTop: 14 }}>
-      <SectionTitle>All entries this month</SectionTitle>
-      {monthTx.length === 0
-        ? <Empty text="No entries for this month. Switch months with the arrows above, or add one." />
-        : <TxList list={monthTx} onDelete={deleteTx} />}
+      <SectionTitle right={filtering && (
+        <span style={{ fontSize: 13, color: T.mute, fontVariantNumeric: "tabular-nums" }}>
+          {list.length} {list.length === 1 ? "match" : "matches"} · net {(net >= 0 ? "+" : "−") + fmt(Math.abs(net))}
+        </span>
+      )}>All entries this month</SectionTitle>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search notes and categories"
+          style={{ ...inputStyle, flex: 1, minWidth: 170 }} />
+        <select value={ftype} onChange={(e) => setFtype(e.target.value)} style={{ ...inputStyle, width: 120 }}>
+          <option value="all">All types</option>
+          <option value="expense">Expenses</option>
+          <option value="income">Income</option>
+        </select>
+        <select value={fcat} onChange={(e) => setFcat(e.target.value)} style={{ ...inputStyle, width: 160 }}>
+          <option value="all">All categories</option>
+          {[...EXPENSE_CATS, ...INCOME_CATS].map((c) => <option key={c}>{c}</option>)}
+        </select>
+      </div>
+      {list.length === 0
+        ? <Empty text={monthTx.length === 0
+            ? "No entries for this month. Switch months with the arrows above, or add one."
+            : "Nothing matches those filters."} />
+        : <TxList list={list} onDelete={deleteTx} onEdit={updateTx} />}
     </Card>
   );
 }
 
-function TxList({ list, onDelete }) {
+function TxList({ list, onDelete, onEdit }) {
+  const [editingId, setEditingId] = useState(null);
   return (
     <div>
       {list.map((t, i) => (
+        editingId === t.id ? (
+          <TxEditRow key={t.id} t={t} topBorder={i > 0}
+            onSave={(patch) => { onEdit(t.id, patch); setEditingId(null); }}
+            onCancel={() => setEditingId(null)} />
+        ) : (
         <div key={t.id} style={{
           display: "flex", alignItems: "center", gap: 10, padding: "10px 2px",
           borderTop: i ? `1px solid ${T.line}` : "none", fontSize: 14,
@@ -859,12 +1040,60 @@ function TxList({ list, onDelete }) {
           }}>
             {t.type === "income" ? "+" : "−"}{fmt(t.amount)}
           </span>
+          {onEdit && (
+            <button onClick={() => setEditingId(t.id)} aria-label={`Edit ${t.category} entry`}
+              style={{ ...btn("transparent", T.mute), padding: "4px 6px", fontSize: 14 }}>✎</button>
+          )}
           {onDelete && (
             <button onClick={() => onDelete(t.id)} aria-label={`Delete ${t.category} entry`}
               style={{ ...btn("transparent", T.mute), padding: "4px 8px", fontSize: 16 }}>×</button>
           )}
         </div>
+        )
       ))}
+    </div>
+  );
+}
+
+function TxEditRow({ t, topBorder, onSave, onCancel }) {
+  const [type, setType] = useState(t.type);
+  const [amount, setAmount] = useState(String(t.amount));
+  const [category, setCategory] = useState(t.category);
+  const [date, setDate] = useState(t.date);
+  const [note, setNote] = useState(t.note || "");
+  const cats = type === "expense" ? EXPENSE_CATS : INCOME_CATS;
+
+  const switchType = (newType) => {
+    setType(newType);
+    const newCats = newType === "expense" ? EXPENSE_CATS : INCOME_CATS;
+    if (!newCats.includes(category)) setCategory(newCats[0]);
+  };
+
+  const save = () => {
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0 || !date) return;
+    onSave({ type, amount: amt, category, date, note: note.trim() });
+  };
+
+  return (
+    <div style={{
+      padding: "10px 2px", borderTop: topBorder ? `1px solid ${T.line}` : "none",
+      display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center",
+    }}>
+      <select value={type} onChange={(e) => switchType(e.target.value)} style={{ ...inputStyle, width: 105 }}>
+        <option value="expense">Expense</option>
+        <option value="income">Income</option>
+      </select>
+      <input type="number" min="0" step="0.01" value={amount}
+        onChange={(e) => setAmount(e.target.value)} style={{ ...inputStyle, width: 100 }} />
+      <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...inputStyle, width: 140 }}>
+        {cats.map((c) => <option key={c}>{c}</option>)}
+      </select>
+      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...inputStyle, width: 150 }} />
+      <input value={note} placeholder="Note" onChange={(e) => setNote(e.target.value)}
+        style={{ ...inputStyle, flex: 1, minWidth: 120 }} />
+      <button onClick={save} style={{ ...btn(T.pos), padding: "8px 14px" }}>Save</button>
+      <button onClick={onCancel} style={{ ...btn("transparent", T.mute), padding: "8px 10px" }}>Cancel</button>
     </div>
   );
 }
