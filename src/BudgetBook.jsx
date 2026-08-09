@@ -17,8 +17,10 @@ const T = {
   neg: "#A94438",
   mute: "#6B7A72",
   line: "#DCE3DD",
-  serif: "'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif",
-  sans: "'Avenir Next', 'Segoe UI', system-ui, sans-serif",
+  serif: "'Fraunces', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif",
+  sans: "'Inter', 'Avenir Next', 'Segoe UI', system-ui, sans-serif",
+  chartIn: "#2F9E68", chartOut: "#96352D",
+  shadow: "0 1px 2px rgba(28,43,36,0.05), 0 12px 28px -16px rgba(28,43,36,0.22)",
 };
 
 const EXPENSE_CATS = [
@@ -38,11 +40,13 @@ const BILL_PRESETS = [
   ["Credit card", "Other"], ["Student loan", "Other"], ["Childcare", "Other"],
 ];
 
+// Hue assignment is ordered so adjacent categories stay distinguishable under
+// colorblindness — re-validate (dataviz six checks) before reshuffling
 const CAT_COLORS = {
-  Housing: "#22493C", Groceries: "#2E7D5B", Dining: "#B98A2F",
-  Transport: "#4E7A8A", Utilities: "#6B7A72", Health: "#7A5C8A",
-  Entertainment: "#C06A4E", Shopping: "#8A6B4E", Subscriptions: "#4E5A8A",
-  Other: "#9AA79E",
+  Housing: "#1E7A4F", Groceries: "#DFA32B", Dining: "#5560C0",
+  Transport: "#B5504A", Utilities: "#0E9488", Health: "#A87F35",
+  Entertainment: "#3E7FB5", Shopping: "#C4703A", Subscriptions: "#8A5FA8",
+  Other: "#D683A2",
 };
 
 const STORE_KEY = "budget-book-v1";
@@ -76,8 +80,8 @@ const shiftMonth = (ym, delta) => {
 function Card({ children, style }) {
   return (
     <div style={{
-      background: T.card, border: `1px solid ${T.line}`, borderRadius: 10,
-      padding: 18, ...style,
+      background: T.card, border: `1px solid ${T.line}`, borderRadius: 14,
+      padding: 20, boxShadow: T.shadow, ...style,
     }}>
       {children}
     </div>
@@ -99,11 +103,15 @@ function SectionTitle({ children, right }) {
 function ProgressBar({ ratio, over }) {
   const pct = Math.min(ratio * 100, 100);
   return (
-    <div style={{ height: 8, background: T.paper, borderRadius: 99, overflow: "hidden", border: `1px solid ${T.line}` }}>
+    <div style={{
+      height: 10, background: "#E9EDE7", borderRadius: 99, overflow: "hidden",
+      border: `1px solid ${T.line}`, boxShadow: "inset 0 1px 2px rgba(28,43,36,0.08)",
+    }}>
       <div style={{
         width: `${pct}%`, height: "100%", borderRadius: 99,
         background: over ? T.neg : ratio > 0.85 ? T.brass : T.pos,
-        transition: "width 300ms ease",
+        backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0) 60%)",
+        transition: "width 400ms cubic-bezier(.22,.9,.35,1)",
       }} />
     </div>
   );
@@ -115,9 +123,14 @@ const inputStyle = {
   fontFamily: T.sans, fontSize: 14, outline: "none",
 };
 const btn = (bg, color = "#fff") => ({
-  padding: "9px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+  padding: "9px 16px", borderRadius: 9, border: "none", cursor: "pointer",
   background: bg, color, fontFamily: T.sans, fontSize: 14, fontWeight: 600,
 });
+
+const tooltipStyle = {
+  background: T.card, border: `1px solid ${T.line}`, borderRadius: 10,
+  boxShadow: "0 8px 24px -10px rgba(28,43,36,0.3)", fontFamily: T.sans, fontSize: 13,
+};
 
 // ---------- Main app ----------
 export default function BudgetBook() {
@@ -260,27 +273,54 @@ export default function BudgetBook() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: T.paper, fontFamily: T.sans, color: T.ink, paddingBottom: 60 }}>
+    <div style={{
+      minHeight: "100vh", background: T.paper, fontFamily: T.sans, color: T.ink, paddingBottom: 60,
+      backgroundImage: "radial-gradient(rgba(28,43,36,0.04) 1px, transparent 1px)",
+      backgroundSize: "22px 22px",
+    }}>
       {/* ----- Passbook header ----- */}
-      <header style={{ background: T.pine, color: "#EFF3EE", padding: "26px 20px 0" }}>
+      <header style={{
+        background: `repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 7px), linear-gradient(175deg, #275544 0%, ${T.pine} 45%, ${T.pineDeep} 100%)`,
+        color: "#EFF3EE", padding: "30px 20px 0",
+        borderBottom: `3px solid ${T.brass}`,
+        boxShadow: "inset 0 -16px 32px -20px rgba(0,0,0,0.5)",
+      }}>
         <div style={{ maxWidth: 880, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-            <div>
-              <div style={{ fontFamily: T.sans, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: "#A9C0B2" }}>
-                Count All Spending Habits
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div aria-hidden style={{
+                width: 46, height: 46, borderRadius: "50%", flexShrink: 0,
+                border: "1.5px solid rgba(240,220,168,0.75)",
+                boxShadow: "inset 0 0 0 3px rgba(240,220,168,0.16)",
+                display: "grid", placeItems: "center",
+                fontFamily: T.serif, fontSize: 22, color: "#F0DCA8",
+              }}>¢</div>
+              <div>
+                <div style={{ fontFamily: T.sans, fontSize: 11, letterSpacing: "0.24em", textTransform: "uppercase", color: "#A9C0B2" }}>
+                  Count All Spending Habits
+                </div>
+                <h1 style={{
+                  margin: "2px 0 0", fontFamily: T.serif, fontWeight: 600, fontSize: 34,
+                  letterSpacing: "0.05em", textShadow: "0 1px 0 rgba(0,0,0,0.3)",
+                }}>
+                  CASH
+                </h1>
               </div>
-              <h1 style={{ margin: "2px 0 0", fontFamily: T.serif, fontWeight: 600, fontSize: 30 }}>
-                CASH
-              </h1>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <button onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label="Previous month"
-                style={{ ...btn(T.pineDeep, "#EFF3EE"), padding: "7px 12px" }}>‹</button>
-              <div style={{ fontFamily: T.serif, fontSize: 17, minWidth: 150, textAlign: "center" }}>
+                style={{
+                  ...btn("rgba(0,0,0,0.28)", "#EFF3EE"), width: 34, height: 34, padding: 0,
+                  borderRadius: "50%", border: "1px solid rgba(255,255,255,0.22)", fontSize: 16,
+                }}>‹</button>
+              <div style={{ fontFamily: T.serif, fontSize: 18, minWidth: 160, textAlign: "center", letterSpacing: "0.02em" }}>
                 {monthLabel(month)}
               </div>
               <button onClick={() => setMonth((m) => shiftMonth(m, 1))} aria-label="Next month"
-                style={{ ...btn(T.pineDeep, "#EFF3EE"), padding: "7px 12px" }}>›</button>
+                style={{
+                  ...btn("rgba(0,0,0,0.28)", "#EFF3EE"), width: 34, height: 34, padding: 0,
+                  borderRadius: "50%", border: "1px solid rgba(255,255,255,0.22)", fontSize: 16,
+                }}>›</button>
             </div>
           </div>
 
@@ -299,8 +339,11 @@ export default function BudgetBook() {
                 borderLeft: i ? "1px solid rgba(255,255,255,0.25)" : "none",
                 textAlign: "center",
               }}>
-                <div style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "#A9C0B2" }}>{label}</div>
-                <div style={{ fontFamily: T.serif, fontSize: 22, marginTop: 3, color, fontVariantNumeric: "tabular-nums" }}>{val}</div>
+                <div style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "#A9C0B2" }}>{label}</div>
+                <div style={{
+                  fontFamily: T.serif, fontSize: 26, marginTop: 4, color,
+                  fontVariantNumeric: "tabular-nums", textShadow: "0 1px 0 rgba(0,0,0,0.25)",
+                }}>{val}</div>
               </div>
             ))}
           </div>
@@ -312,15 +355,16 @@ export default function BudgetBook() {
         <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", marginTop: 14 }}>
           {tabs.map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{
-              ...btn(tab === id ? T.ink : "transparent", tab === id ? "#fff" : T.mute),
-              border: `1px solid ${tab === id ? T.ink : T.line}`,
+              ...btn(tab === id ? T.pine : T.card, tab === id ? "#F0DCA8" : T.mute),
+              border: `1px solid ${tab === id ? T.pine : T.line}`, borderRadius: 99,
+              boxShadow: tab === id ? "inset 0 1px 0 rgba(255,255,255,0.12)" : "none",
             }}>{label}</button>
           ))}
           <div style={{ flex: 1 }} />
           <button onClick={exportData} title="Download a JSON backup of all your data"
-            style={{ ...btn("transparent", T.mute), border: `1px solid ${T.line}` }}>Export</button>
+            style={{ ...btn(T.card, T.mute), border: `1px solid ${T.line}`, borderRadius: 99 }}>Export</button>
           <label title="Restore from a JSON backup"
-            style={{ ...btn("transparent", T.mute), border: `1px solid ${T.line}`, display: "inline-block" }}>
+            style={{ ...btn(T.card, T.mute), border: `1px solid ${T.line}`, borderRadius: 99, display: "inline-block" }}>
             Import
             <input type="file" accept=".json,application/json" style={{ display: "none" }}
               onChange={(e) => {
@@ -328,7 +372,10 @@ export default function BudgetBook() {
                 e.target.value = "";
               }} />
           </label>
-          <button onClick={() => setShowAdd((s) => !s)} style={btn(T.brass)}>
+          <button onClick={() => setShowAdd((s) => !s)} style={{
+            ...btn(T.brass), borderRadius: 99,
+            boxShadow: "0 6px 14px -8px rgba(185,138,47,0.7)",
+          }}>
             {showAdd ? "Close" : "+ Add entry"}
           </button>
         </div>
@@ -433,10 +480,15 @@ function Overview({ spentByCat, budgets, trend, monthTx, expenses }) {
             <div style={{ height: 210 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={2}>
+                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={58} outerRadius={85}
+                    paddingAngle={2} cornerRadius={3} stroke={T.card} strokeWidth={2}>
                     {pieData.map((d) => <Cell key={d.name} fill={CAT_COLORS[d.name] || T.mute} />)}
                   </Pie>
-                  <Tooltip formatter={(v) => fmt(v)} />
+                  <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle"
+                    style={{ fontFamily: T.serif, fontSize: 21, fill: T.ink }}>{fmt(expenses)}</text>
+                  <text x="50%" y="46%" dy={20} textAnchor="middle" dominantBaseline="middle"
+                    style={{ fontFamily: T.sans, fontSize: 10, letterSpacing: "0.16em", fill: T.mute }}>SPENT</text>
+                  <Tooltip formatter={(v) => fmt(v)} contentStyle={tooltipStyle} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -463,10 +515,11 @@ function Overview({ spentByCat, budgets, trend, monthTx, expenses }) {
               <XAxis dataKey="name" tick={{ fontSize: 12, fill: T.mute }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: T.mute }} axisLine={false} tickLine={false}
                 tickFormatter={(v) => (v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`)} width={48} />
-              <Tooltip formatter={(v) => fmt(v)} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="In" fill={T.pos} radius={[3, 3, 0, 0]} />
-              <Bar dataKey="Out" fill={T.neg} radius={[3, 3, 0, 0]} />
+              <Tooltip formatter={(v) => fmt(v)} contentStyle={tooltipStyle}
+                cursor={{ fill: "rgba(28,43,36,0.05)" }} />
+              <Legend wrapperStyle={{ fontSize: 12, fontFamily: T.sans }} iconType="circle" iconSize={9} />
+              <Bar dataKey="In" fill={T.chartIn} radius={[4, 4, 0, 0]} maxBarSize={26} />
+              <Bar dataKey="Out" fill={T.chartOut} radius={[4, 4, 0, 0]} maxBarSize={26} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -740,7 +793,8 @@ function TxList({ list, onDelete }) {
 
 function Empty({ text, card }) {
   const inner = (
-    <div style={{ color: T.mute, fontSize: 14, padding: "18px 6px", textAlign: "center", fontFamily: T.serif, fontStyle: "italic" }}>
+    <div style={{ color: T.mute, fontSize: 14, padding: "20px 6px", textAlign: "center", fontFamily: T.serif, fontStyle: "italic" }}>
+      <div aria-hidden style={{ color: T.brass, fontSize: 14, fontStyle: "normal", letterSpacing: "0.4em", marginBottom: 7 }}>✦ ✦ ✦</div>
       {text}
     </div>
   );
