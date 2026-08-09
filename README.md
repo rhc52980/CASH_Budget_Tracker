@@ -16,6 +16,9 @@ npm run dev
 
 Then open http://localhost:5173.
 
+Run `npm test` for the unit tests (CSV parsing, rollover math, date helpers).
+Pushes to `main` deploy automatically to GitHub Pages via Actions.
+
 ## Features
 
 - **Overview** — spending-by-category donut, recent entries, and a Trends chart
@@ -32,4 +35,9 @@ Then open http://localhost:5173.
 - **Export / Import** — download all data as a JSON backup, or restore from one
 - **CSV import** — load a bank statement export; columns are auto-detected, categories
   guessed from merchant names, and likely duplicates flagged before anything is saved
+- **Year view** — annual totals, net by month, category breakdown, and year notes
+- **Custom categories** — add your own expense categories with a color of your choice
+- **Dark mode** — banker's-lamp dark theme, toggled from the header and remembered
+- **Mobile-first on phones** — bottom tab bar and a floating add button under 640px
+- **Backup nudges** — a gentle reminder when your last export is more than 30 days old
 - **Installable PWA** — add it to your phone or desktop; works offline (production build)

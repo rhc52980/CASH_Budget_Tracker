@@ -16,16 +16,17 @@ self.addEventListener("fetch", (e) => {
   const { request } = e;
   if (request.method !== "GET") return;
 
-  // Navigations: network first so updates land, cached shell when offline
+  // Navigations: network first so updates land, cached shell when offline.
+  // Keyed by registration scope so this works under a subpath (GitHub Pages).
   if (request.mode === "navigate") {
     e.respondWith(
       fetch(request)
         .then((res) => {
           const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put("/", copy));
+          caches.open(CACHE).then((c) => c.put(self.registration.scope, copy));
           return res;
         })
-        .catch(() => caches.match("/"))
+        .catch(() => caches.match(self.registration.scope))
     );
     return;
   }

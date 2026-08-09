@@ -12,6 +12,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(
 // Offline/installable support — only in production builds so dev HMR stays clean
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js");
+    navigator.serviceWorker.register(new URL("sw.js", window.location.href));
   });
 }
