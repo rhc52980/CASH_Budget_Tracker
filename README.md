@@ -18,7 +18,8 @@ Then open http://localhost:5173.
 
 ## Features
 
-- **Overview** — spending-by-category donut, six-month income/expense trend, recent entries
+- **Overview** — spending-by-category donut, recent entries, and a Trends chart
+  with three views (in vs out, net, by category) over 3, 6, or 12 months
 - **Bills** — recurring monthly bills with due days; mark them paid each month and the payment is logged as an expense
 - **Budgets** — monthly limit per category with progress bars and over-budget warnings
 - **Goals** — savings goals you can fund incrementally

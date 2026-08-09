@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, Legend,
+  ResponsiveContainer, Legend, LineChart, Line, ReferenceLine,
 } from "recharts";
 
 // ---------- Design tokens: "bank passbook" palette ----------
@@ -132,6 +132,17 @@ const tooltipStyle = {
   boxShadow: "0 8px 24px -10px rgba(28,43,36,0.3)", fontFamily: T.sans, fontSize: 13,
 };
 
+const pill = (active) => ({
+  padding: "4px 11px", borderRadius: 99, cursor: "pointer", fontFamily: T.sans,
+  fontSize: 12, fontWeight: 600, border: `1px solid ${active ? T.pine : T.line}`,
+  background: active ? T.pine : T.card, color: active ? "#F0DCA8" : T.mute,
+});
+
+const kFmt = (v) => {
+  const a = Math.abs(v);
+  return (v < 0 ? "−" : "") + (a >= 1000 ? `$${(a / 1000).toFixed(1)}k` : `$${a}`);
+};
+
 // ---------- Main app ----------
 export default function BudgetBook() {
   const [data, setData] = useState({ transactions: [], budgets: {}, goals: [], bills: [], billPaid: {} });
@@ -139,6 +150,8 @@ export default function BudgetBook() {
   const [month, setMonth] = useState(monthKey(todayStr()));
   const [tab, setTab] = useState("overview");
   const [showAdd, setShowAdd] = useState(false);
+  const [trendRange, setTrendRange] = useState(6);
+  const [trendKind, setTrendKind] = useState("flow");
 
   // Load once
   useEffect(() => {
@@ -175,19 +188,40 @@ export default function BudgetBook() {
     return m;
   }, [monthTx]);
 
-  const trend = useMemo(() => {
+  // Rows for the trend chart over the selected range, ending at the viewed
+  // month. Spending is folded to the top 5 categories + "All else" so the
+  // stacked view never exceeds a readable series count.
+  const { trendRows, trendCats } = useMemo(() => {
     const rows = [];
-    for (let i = 5; i >= 0; i--) {
+    const catTotals = {};
+    for (let i = trendRange - 1; i >= 0; i--) {
       const ym = shiftMonth(month, -i);
-      const tx = data.transactions.filter((t) => monthKey(t.date) === ym);
-      rows.push({
-        name: monthLabel(ym).split(" ")[0].slice(0, 3),
-        In: tx.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0),
-        Out: tx.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0),
+      const row = { name: monthLabel(ym).split(" ")[0].slice(0, 3), In: 0, Out: 0, cats: {} };
+      data.transactions.forEach((t) => {
+        if (monthKey(t.date) !== ym) return;
+        if (t.type === "income") row.In += t.amount;
+        else {
+          row.Out += t.amount;
+          row.cats[t.category] = (row.cats[t.category] || 0) + t.amount;
+          catTotals[t.category] = (catTotals[t.category] || 0) + t.amount;
+        }
       });
+      row.Net = row.In - row.Out;
+      rows.push(row);
     }
-    return rows;
-  }, [data.transactions, month]);
+    const top = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([c]) => c);
+    let hasRest = false;
+    rows.forEach((row) => {
+      let rest = 0;
+      Object.entries(row.cats).forEach(([c, v]) => {
+        if (top.includes(c)) row[c] = v;
+        else rest += v;
+      });
+      if (rest > 0) { row["All else"] = rest; hasRest = true; }
+      delete row.cats;
+    });
+    return { trendRows: rows, trendCats: hasRest ? [...top, "All else"] : top };
+  }, [data.transactions, month, trendRange]);
 
   const addTx = (tx) => setData((d) => ({ ...d, transactions: [...d.transactions, tx] }));
   const deleteTx = (id) => setData((d) => ({ ...d, transactions: d.transactions.filter((t) => t.id !== id) }));
@@ -383,7 +417,10 @@ export default function BudgetBook() {
         {showAdd && <AddEntry onAdd={(tx) => { addTx(tx); setShowAdd(false); }} />}
 
         {tab === "overview" && (
-          <Overview spentByCat={spentByCat} budgets={data.budgets} trend={trend}
+          <Overview spentByCat={spentByCat} budgets={data.budgets}
+            trendRows={trendRows} trendCats={trendCats}
+            trendKind={trendKind} setTrendKind={setTrendKind}
+            trendRange={trendRange} setTrendRange={setTrendRange}
             monthTx={monthTx} expenses={expenses} />
         )}
         {tab === "bills" && (
@@ -463,7 +500,10 @@ function AddEntry({ onAdd }) {
 }
 
 // ---------- Overview ----------
-function Overview({ spentByCat, budgets, trend, monthTx, expenses }) {
+function Overview({
+  spentByCat, budgets, trendRows, trendCats, trendKind, setTrendKind,
+  trendRange, setTrendRange, monthTx, expenses,
+}) {
   const pieData = Object.entries(spentByCat)
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
@@ -508,19 +548,57 @@ function Overview({ spentByCat, budgets, trend, monthTx, expenses }) {
       </Card>
 
       <Card>
-        <SectionTitle>Six-month rhythm</SectionTitle>
-        <div style={{ height: 230 }}>
+        <SectionTitle right={
+          <div style={{ display: "flex", gap: 4 }}>
+            {[3, 6, 12].map((n) => (
+              <button key={n} onClick={() => setTrendRange(n)} style={pill(trendRange === n)}>{n}m</button>
+            ))}
+          </div>
+        }>Trends</SectionTitle>
+        <div style={{ display: "flex", gap: 4, marginBottom: 10, flexWrap: "wrap" }}>
+          {[["flow", "In vs out"], ["net", "Net"], ["cats", "By category"]].map(([id, label]) => (
+            <button key={id} onClick={() => setTrendKind(id)} style={pill(trendKind === id)}>{label}</button>
+          ))}
+        </div>
+        <div style={{ height: 205 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={trend} barGap={2}>
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: T.mute }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: T.mute }} axisLine={false} tickLine={false}
-                tickFormatter={(v) => (v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`)} width={48} />
-              <Tooltip formatter={(v) => fmt(v)} contentStyle={tooltipStyle}
-                cursor={{ fill: "rgba(28,43,36,0.05)" }} />
-              <Legend wrapperStyle={{ fontSize: 12, fontFamily: T.sans }} iconType="circle" iconSize={9} />
-              <Bar dataKey="In" fill={T.chartIn} radius={[4, 4, 0, 0]} maxBarSize={26} />
-              <Bar dataKey="Out" fill={T.chartOut} radius={[4, 4, 0, 0]} maxBarSize={26} />
-            </BarChart>
+            {trendKind === "net" ? (
+              <LineChart data={trendRows}>
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: T.mute }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: T.mute }} axisLine={false} tickLine={false}
+                  tickFormatter={kFmt} width={48} />
+                <ReferenceLine y={0} stroke={T.line} />
+                <Tooltip formatter={(v) => fmt(v)} contentStyle={tooltipStyle} />
+                <Line type="monotone" dataKey="Net" stroke={T.pine} strokeWidth={2}
+                  dot={false} activeDot={{ r: 4.5 }} />
+              </LineChart>
+            ) : trendKind === "cats" ? (
+              <BarChart data={trendRows} barGap={2}>
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: T.mute }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: T.mute }} axisLine={false} tickLine={false}
+                  tickFormatter={kFmt} width={48} />
+                <Tooltip formatter={(v) => fmt(v)} contentStyle={tooltipStyle}
+                  cursor={{ fill: "rgba(28,43,36,0.05)" }} />
+                <Legend wrapperStyle={{ fontSize: 12, fontFamily: T.sans }} iconType="circle" iconSize={9} />
+                {trendCats.map((c, i) => (
+                  <Bar key={c} dataKey={c} stackId="spend" maxBarSize={30}
+                    fill={c === "All else" ? "#8B948C" : CAT_COLORS[c]}
+                    stroke={T.card} strokeWidth={1.5}
+                    radius={i === trendCats.length - 1 ? [4, 4, 0, 0] : 0} />
+                ))}
+              </BarChart>
+            ) : (
+              <BarChart data={trendRows} barGap={2}>
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: T.mute }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: T.mute }} axisLine={false} tickLine={false}
+                  tickFormatter={kFmt} width={48} />
+                <Tooltip formatter={(v) => fmt(v)} contentStyle={tooltipStyle}
+                  cursor={{ fill: "rgba(28,43,36,0.05)" }} />
+                <Legend wrapperStyle={{ fontSize: 12, fontFamily: T.sans }} iconType="circle" iconSize={9} />
+                <Bar dataKey="In" fill={T.chartIn} radius={[4, 4, 0, 0]} maxBarSize={26} />
+                <Bar dataKey="Out" fill={T.chartOut} radius={[4, 4, 0, 0]} maxBarSize={26} />
+              </BarChart>
+            )}
           </ResponsiveContainer>
         </div>
       </Card>
