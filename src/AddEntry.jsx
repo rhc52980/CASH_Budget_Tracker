@@ -45,7 +45,7 @@ export function AddEntry({ onAdd }) {
   const splitTotal = splits ? splits.reduce((s, line) => s + (parseFloat(line.amount) || 0), 0) : 0;
 
   return (
-    <Card style={{ marginTop: 14, borderColor: T.brass, background: T.cardTint }}>
+    <Card style={{ marginTop: 14 }}>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <button onClick={() => switchType("expense")}
           style={btn(type === "expense" ? T.neg : T.paper, type === "expense" ? "#fff" : T.mute)}>Expense</button>

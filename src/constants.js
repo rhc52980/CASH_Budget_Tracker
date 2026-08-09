@@ -6,17 +6,11 @@ export const EXPENSE_CATS = [
 ];
 export const INCOME_CATS = ["Salary", "Freelance", "Gifts", "Other income"];
 
-// Hue assignment is ordered so adjacent categories stay distinguishable under
-// colorblindness — re-validate (dataviz six checks) before reshuffling
-export const CAT_COLORS = {
-  Housing: "#1E7A4F", Groceries: "#DFA32B", Dining: "#5560C0",
-  Transport: "#B5504A", Utilities: "#0E9488", Health: "#A87F35",
-  Entertainment: "#3E7FB5", Shopping: "#C4703A", Subscriptions: "#8A5FA8",
-  Other: "#D683A2",
-};
+// Per-theme category colors live in theme.js (CHART.light.cats / CHART.dark.cats)
+// so each set can be validated against the surface it actually renders on.
 
 // Swatches offered for user-defined categories — mid-lightness hues that stay
-// clear of the fixed palette above
+// clear of the built-in palette
 export const CUSTOM_CAT_COLORS = [
   "#2E9AA8", "#7A9A3F", "#C2527E", "#6B62D9",
   "#B8722C", "#4E9E4E", "#A65B9E", "#75808A",

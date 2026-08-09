@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { T, CHART } from "./theme.js";
 import { AppCtx } from "./ctx.js";
-import { STORE_KEY, EXPENSE_CATS, INCOME_CATS, CAT_COLORS } from "./constants.js";
+import { STORE_KEY, EXPENSE_CATS, INCOME_CATS } from "./constants.js";
 import {
   fmt, uid, monthKey, todayStr, monthLabel, shiftMonth, dueDateInMonth, computeCarry,
 } from "./utils.js";
 import { buildCsvPreview } from "./csv.js";
-import { btn, useCountUp } from "./ui.jsx";
+import { btn, ghostBtn, pill, numeral, useCountUp } from "./ui.jsx";
 import { AddEntry } from "./AddEntry.jsx";
 import { Overview } from "./OverviewTab.jsx";
 import { Bills } from "./BillsTab.jsx";
@@ -76,12 +76,13 @@ export default function BudgetBook() {
     catch (e) { console.error("Save failed", e); }
   }, [data, loaded]);
 
+  const chart = CHART[dark ? "dark" : "light"];
   const customMap = useMemo(() => new Map(data.customCats.map((c) => [c.name, c.color])), [data.customCats]);
   const expenseCats = useMemo(() => [...EXPENSE_CATS, ...data.customCats.map((c) => c.name)], [data.customCats]);
   const allCats = useMemo(() => [...expenseCats, ...INCOME_CATS], [expenseCats]);
   const catColor = useCallback(
-    (cat) => CAT_COLORS[cat] || customMap.get(cat) || "#8B948C",
-    [customMap]
+    (cat) => chart.cats[cat] || customMap.get(cat) || chart.rest,
+    [customMap, chart]
   );
 
   const monthTx = useMemo(
@@ -317,8 +318,11 @@ export default function BudgetBook() {
 
   if (!loaded) {
     return (
-      <div style={{ minHeight: "100vh", background: T.paper, display: "grid", placeItems: "center", fontFamily: T.serif, color: T.mute }}>
-        Opening your ledger…
+      <div style={{
+        minHeight: "100vh", background: T.paper, display: "grid", placeItems: "center",
+        fontFamily: T.sans, fontSize: 14, color: T.mute,
+      }}>
+        Loading…
       </div>
     );
   }
@@ -332,121 +336,118 @@ export default function BudgetBook() {
     ["year", "Year"],
   ];
 
-  const ctxValue = { dark, chart: CHART[dark ? "dark" : "light"], expenseCats, allCats, catColor };
+  const ctxValue = { dark, chart, expenseCats, allCats, catColor };
+  const iconBtn = {
+    width: 32, height: 32, padding: 0, borderRadius: 8, cursor: "pointer",
+    display: "grid", placeItems: "center", fontSize: 15,
+    background: "transparent", color: T.mute, border: `1px solid ${T.line}`,
+  };
 
   return (
     <AppCtx.Provider value={ctxValue}>
     <div style={{
       minHeight: "100vh", background: T.paper, fontFamily: T.sans, color: T.ink,
-      paddingBottom: isMobile ? 110 : 60,
-      backgroundImage: "var(--dotgrid)", backgroundSize: "22px 22px",
+      paddingBottom: isMobile ? 110 : 64, letterSpacing: "-0.011em",
     }}>
-      {/* ----- Passbook header ----- */}
+      {/* ----- Top bar ----- */}
       <header style={{
-        background: "var(--header-grad)",
-        color: T.headerInk, padding: "30px 20px 0",
-        borderBottom: `3px solid ${T.brass}`,
-        boxShadow: "inset 0 -16px 32px -20px rgba(0,0,0,0.5)",
+        position: "sticky", top: 0, zIndex: 30,
+        background: T.paper, borderBottom: `1px solid ${T.line}`,
+        padding: "0 20px",
       }}>
-        <div style={{ maxWidth: 880, margin: "0 auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div aria-hidden style={{
-                width: 48, height: 48, borderRadius: "50%", flexShrink: 0,
-                background: "radial-gradient(circle at 36% 30%, #F0B285, #C97C4A 58%, #9C5A2E)",
-                boxShadow: "inset 0 0 0 3px rgba(140,79,38,0.6), inset 0 0 0 8px rgba(140,79,38,0.2), 0 2px 8px rgba(0,0,0,0.35)",
-                display: "grid", placeItems: "center",
-                fontFamily: T.serif, fontSize: 25, fontWeight: 700, color: "#5C3317",
-                textShadow: "1px 1px 0 rgba(247,203,163,0.55)",
-              }}>¢</div>
-              <div>
-                <div style={{ fontFamily: T.sans, fontSize: 11, letterSpacing: "0.24em", textTransform: "uppercase", color: T.headerSub }}>
-                  Count All Spending Habits
-                </div>
-                <h1 style={{
-                  margin: "2px 0 0", fontFamily: T.serif, fontWeight: 600, fontSize: 34,
-                  letterSpacing: "0.05em", textShadow: "0 1px 0 rgba(0,0,0,0.3)",
-                }}>
-                  CASH
-                </h1>
-              </div>
+        <div style={{
+          maxWidth: 1000, margin: "0 auto", height: 60,
+          display: "flex", alignItems: "center", gap: 12,
+        }}>
+          <div aria-hidden style={{
+            width: 28, height: 28, borderRadius: 9, flexShrink: 0,
+            background: T.brass, color: T.goldInk,
+            display: "grid", placeItems: "center",
+            fontSize: 17, fontWeight: 700, lineHeight: 1,
+          }}>¢</div>
+          <span style={{ fontSize: 16, fontWeight: 650, letterSpacing: "-0.02em" }}>CASH</span>
+
+          <div style={{ flex: 1 }} />
+
+          <div style={{
+            display: "flex", alignItems: "center", gap: 2,
+            background: T.cardTint, border: `1px solid ${T.line}`,
+            borderRadius: 10, padding: 2,
+          }}>
+            <button onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label="Previous month"
+              style={{ ...iconBtn, width: 28, height: 28, border: "none", background: "transparent" }}>‹</button>
+            <div style={{
+              fontSize: 13.5, fontWeight: 550, minWidth: isMobile ? 96 : 132, textAlign: "center",
+            }}>
+              {isMobile ? monthLabel(month).replace(/(\w{3})\w*\s/, "$1 ") : monthLabel(month)}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <button onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label="Previous month"
-                style={{
-                  ...btn("rgba(0,0,0,0.28)", T.headerInk), width: 34, height: 34, padding: 0,
-                  borderRadius: "50%", border: "1px solid rgba(255,255,255,0.22)", fontSize: 16,
-                }}>‹</button>
-              <div style={{ fontFamily: T.serif, fontSize: 18, minWidth: 160, textAlign: "center", letterSpacing: "0.02em" }}>
-                {monthLabel(month)}
-              </div>
-              <button onClick={() => setMonth((m) => shiftMonth(m, 1))} aria-label="Next month"
-                style={{
-                  ...btn("rgba(0,0,0,0.28)", T.headerInk), width: 34, height: 34, padding: 0,
-                  borderRadius: "50%", border: "1px solid rgba(255,255,255,0.22)", fontSize: 16,
-                }}>›</button>
-              <button onClick={() => setDark((v) => !v)} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-                title={dark ? "Light mode" : "Dark mode"}
-                style={{
-                  ...btn("rgba(0,0,0,0.28)", T.goldInk), width: 34, height: 34, padding: 0,
-                  borderRadius: "50%", border: "1px solid rgba(255,255,255,0.22)", fontSize: 15, marginLeft: 4,
-                }}>{dark ? "☀" : "☾"}</button>
-            </div>
+            <button onClick={() => setMonth((m) => shiftMonth(m, 1))} aria-label="Next month"
+              style={{ ...iconBtn, width: 28, height: 28, border: "none", background: "transparent" }}>›</button>
           </div>
 
-          {/* Ledger line */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr 1fr", marginTop: 22,
-            borderTop: "1px solid rgba(255,255,255,0.25)",
-          }}>
-            <HeaderStat label="Money in" value={income} color="#A9D8BC" prefix="" />
-            <HeaderStat label="Money out" value={expenses} color="#E8B7A9" prefix="" divider />
-            <HeaderStat label="Net this month" value={net} color={net >= 0 ? "#F0DCA8" : "#E8B7A9"} signed divider />
-          </div>
+          <button onClick={() => setDark((v) => !v)}
+            aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+            style={iconBtn}>{dark ? "☀" : "☾"}</button>
         </div>
       </header>
 
-      {/* ----- Tabs + toolbar ----- */}
-      <div style={{ maxWidth: 880, margin: "0 auto", padding: "0 20px" }}>
+      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 20px" }}>
         <BackupNudge transactions={data.transactions} onExport={exportData} />
 
-        <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", marginTop: 14 }}>
-          {!isMobile && tabs.map(([id, label]) => (
-            <button key={id} onClick={() => setTab(id)} style={{
-              ...btn(tab === id ? T.pine : T.card, tab === id ? T.goldInk : T.mute),
-              border: `1px solid ${tab === id ? T.pine : T.line}`, borderRadius: 99,
-              boxShadow: tab === id ? "inset 0 1px 0 rgba(255,255,255,0.12)" : "none",
-            }}>{label}</button>
-          ))}
-          <div style={{ flex: 1 }} />
-          <button onClick={exportData} title="Download a JSON backup of all your data"
-            style={{ ...btn(T.card, T.mute), border: `1px solid ${T.line}`, borderRadius: 99 }}>Export</button>
-          <label title="Restore from a JSON backup"
-            style={{ ...btn(T.card, T.mute), border: `1px solid ${T.line}`, borderRadius: 99, display: "inline-block" }}>
-            Import
-            <input type="file" accept=".json,application/json" style={{ display: "none" }}
-              onChange={(e) => {
-                if (e.target.files[0]) importData(e.target.files[0]);
-                e.target.value = "";
-              }} />
-          </label>
-          <label title="Import transactions from a bank CSV export"
-            style={{ ...btn(T.card, T.mute), border: `1px solid ${T.line}`, borderRadius: 99, display: "inline-block" }}>
-            Import CSV
-            <input type="file" accept=".csv,text/csv" style={{ display: "none" }}
-              onChange={(e) => {
-                if (e.target.files[0]) importCsv(e.target.files[0]);
-                e.target.value = "";
-              }} />
-          </label>
+        {/* ----- Summary ----- */}
+        <div style={{
+          display: "grid", gap: 12, marginTop: 20,
+          gridTemplateColumns: isMobile ? "1fr" : "1.3fr 1fr 1fr",
+        }}>
+          <Stat label="Net this month" value={net} signed emphasis
+            color={net >= 0 ? T.pos : T.neg} />
+          <Stat label="Money in" value={income} />
+          <Stat label="Money out" value={expenses} />
+        </div>
+
+        {/* ----- Nav + actions ----- */}
+        <div style={{
+          display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap",
+          marginTop: 22,
+        }}>
           {!isMobile && (
-            <button onClick={() => setShowAdd((s) => !s)} style={{
-              ...btn(T.brass), borderRadius: 99,
-              boxShadow: "0 6px 14px -8px rgba(185,138,47,0.7)",
+            <div style={{
+              display: "flex", gap: 2, background: T.cardTint,
+              border: `1px solid ${T.line}`, borderRadius: 10, padding: 3,
             }}>
-              {showAdd ? "Close" : "+ Add entry"}
-            </button>
+              {tabs.map(([id, label]) => (
+                <button key={id} onClick={() => setTab(id)} style={pill(tab === id)}>{label}</button>
+              ))}
+            </div>
           )}
+          <div style={{ flex: 1 }} />
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <button onClick={exportData} title="Download a JSON backup of all your data"
+              style={{ ...ghostBtn, padding: "8px 12px", fontSize: 13, color: T.mute }}>Export</button>
+            <label title="Restore from a JSON backup"
+              style={{ ...ghostBtn, padding: "8px 12px", fontSize: 13, color: T.mute, display: "inline-block" }}>
+              Import
+              <input type="file" accept=".json,application/json" style={{ display: "none" }}
+                onChange={(e) => {
+                  if (e.target.files[0]) importData(e.target.files[0]);
+                  e.target.value = "";
+                }} />
+            </label>
+            <label title="Import transactions from a bank CSV export"
+              style={{ ...ghostBtn, padding: "8px 12px", fontSize: 13, color: T.mute, display: "inline-block" }}>
+              Import CSV
+              <input type="file" accept=".csv,text/csv" style={{ display: "none" }}
+                onChange={(e) => {
+                  if (e.target.files[0]) importCsv(e.target.files[0]);
+                  e.target.value = "";
+                }} />
+            </label>
+            {!isMobile && (
+              <button onClick={() => setShowAdd((s) => !s)} style={btn(T.brass)}>
+                {showAdd ? "Close" : "New entry"}
+              </button>
+            )}
+          </div>
         </div>
 
         {showAdd && <AddEntry onAdd={(txs) => { addTxs(txs); setShowAdd(false); }} />}
@@ -489,22 +490,23 @@ export default function BudgetBook() {
             aria-label={showAdd ? "Close entry form" : "Add entry"}
             style={{
               position: "fixed", right: 16, bottom: 66, zIndex: 41,
-              width: 54, height: 54, borderRadius: "50%", border: "none", cursor: "pointer",
-              background: T.brass, color: "#fff", fontSize: 26, lineHeight: 1,
-              boxShadow: "0 8px 20px -6px rgba(185,138,47,0.8)",
+              width: 52, height: 52, borderRadius: 18, border: "none", cursor: "pointer",
+              background: T.brass, color: T.goldInk, fontSize: 26, fontWeight: 400, lineHeight: 1,
+              boxShadow: "0 10px 24px -8px rgba(0,0,0,0.45)",
             }}>{showAdd ? "×" : "+"}</button>
           <nav style={{
             position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40,
             display: "flex", background: T.card, borderTop: `1px solid ${T.line}`,
-            boxShadow: "0 -6px 18px -12px rgba(0,0,0,0.35)",
             paddingBottom: "env(safe-area-inset-bottom)",
           }}>
             {tabs.map(([id, label]) => (
               <button key={id} onClick={() => setTab(id)} style={{
-                flex: 1, padding: "11px 0 12px", border: "none", cursor: "pointer",
+                flex: 1, padding: "12px 0 13px", border: "none", cursor: "pointer",
                 background: "transparent", fontFamily: T.sans, fontSize: 11,
-                fontWeight: tab === id ? 700 : 500,
-                color: tab === id ? T.brass : T.mute,
+                fontWeight: tab === id ? 650 : 500, letterSpacing: "-0.01em",
+                color: tab === id ? T.ink : T.mute,
+                borderTop: `2px solid ${tab === id ? T.brass : "transparent"}`,
+                marginTop: -1,
               }}>{label}</button>
             ))}
           </nav>
@@ -515,18 +517,19 @@ export default function BudgetBook() {
         <div style={{
           position: "fixed", left: "50%", transform: "translateX(-50%)",
           bottom: isMobile ? 118 : 20, zIndex: 45,
-          display: "flex", alignItems: "center", gap: 10,
-          padding: "10px 14px", borderRadius: 99, fontSize: 13,
-          background: T.pine, color: T.headerInk, boxShadow: T.shadow,
-          animation: "fadeUp 300ms ease both",
+          display: "flex", alignItems: "center", gap: 10, whiteSpace: "nowrap",
+          padding: "10px 10px 10px 16px", borderRadius: 14, fontSize: 13.5,
+          background: T.card, color: T.ink, border: `1px solid ${T.line}`,
+          boxShadow: "0 12px 32px -12px rgba(0,0,0,0.4)",
+          animation: "riseIn 260ms ease both",
         }}>
-          <span>A new version of CASH is ready.</span>
+          <span>A new version is ready.</span>
           <button onClick={() => window.location.reload()}
-            style={{ ...btn(T.brass), padding: "6px 12px", fontSize: 13, borderRadius: 99 }}>
+            style={{ ...btn(T.brass), padding: "7px 13px", fontSize: 13 }}>
             Refresh
           </button>
           <button onClick={() => setUpdateReady(false)} aria-label="Dismiss update notice"
-            style={{ ...btn("transparent", T.headerSub), padding: "2px 6px", fontSize: 15 }}>×</button>
+            style={{ ...btn("transparent", T.mute), padding: "4px 8px", fontSize: 16 }}>×</button>
         </div>
       )}
 
@@ -545,19 +548,20 @@ export default function BudgetBook() {
   );
 }
 
-function HeaderStat({ label, value, color, signed, divider }) {
+function Stat({ label, value, color, signed, emphasis }) {
   const disp = useCountUp(value);
   const text = signed ? (disp >= 0 ? "+" : "−") + fmt(Math.abs(disp)) : fmt(disp);
   return (
     <div style={{
-      padding: "14px 4px 18px",
-      borderLeft: divider ? "1px solid rgba(255,255,255,0.25)" : "none",
-      textAlign: "center", minWidth: 0, overflow: "hidden",
+      background: T.card, border: `1px solid ${T.line}`, borderRadius: 16,
+      padding: emphasis ? "18px 20px" : "16px 18px", minWidth: 0,
+      boxShadow: T.shadow, animation: "riseIn 260ms ease both",
     }}>
-      <div style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: T.headerSub }}>{label}</div>
+      <div style={{ fontSize: 13, color: T.mute, fontWeight: 500 }}>{label}</div>
       <div style={{
-        fontFamily: T.serif, fontSize: "clamp(16px, 5.5vw, 26px)", marginTop: 4, color,
-        fontVariantNumeric: "tabular-nums", textShadow: "0 1px 0 rgba(0,0,0,0.25)",
+        ...numeral(emphasis ? "clamp(28px, 7vw, 38px)" : "clamp(21px, 5vw, 26px)", emphasis ? 650 : 600),
+        marginTop: 6, color: color || T.ink,
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
       }}>{text}</div>
     </div>
   );
@@ -576,21 +580,20 @@ function BackupNudge({ transactions, onExport }) {
 
   return (
     <div style={{
-      marginTop: 14, padding: "10px 14px", borderRadius: 10,
-      border: `1px solid ${T.brass}`, background: T.brassSoft,
-      display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13, color: T.ink,
+      marginTop: 16, padding: "12px 14px", borderRadius: 12,
+      border: `1px solid ${T.line}`, background: T.brassSoft,
+      display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13.5, color: T.ink,
     }}>
-      <span aria-hidden style={{ color: T.brass }}>✦</span>
       <span style={{ flex: 1, minWidth: 160 }}>
         {days === null
           ? "Your ledger has never been backed up — one click keeps it safe."
           : `It's been ${days} days since your last backup.`}
       </span>
-      <button onClick={() => { onExport(); setDismissed(true); }} style={{ ...btn(T.brass), padding: "6px 12px", fontSize: 13 }}>
+      <button onClick={() => { onExport(); setDismissed(true); }} style={{ ...btn(T.brass), padding: "7px 13px", fontSize: 13 }}>
         Export backup
       </button>
       <button onClick={() => { localStorage.setItem("cash-backup-snooze", String(Date.now())); setDismissed(true); }}
-        style={{ ...btn("transparent", T.mute), padding: "6px 8px", fontSize: 13 }}>
+        style={{ ...btn("transparent", T.mute), padding: "7px 10px", fontSize: 13 }}>
         Later
       </button>
     </div>

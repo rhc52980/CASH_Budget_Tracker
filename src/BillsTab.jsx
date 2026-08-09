@@ -38,17 +38,18 @@ export function Bills({
 
   return (
     <div style={{ display: "grid", gap: 14, marginTop: 14 }}>
-      <Card style={{ background: T.cardTint, borderColor: T.brass }}>
+      <Card>
         <SectionTitle>Add a monthly bill</SectionTitle>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
           {BILL_PRESETS.map(([label, cat]) => (
             <button key={label}
               onClick={() => { setName(label); setCategory(cat); setErr(""); }}
               style={{
-                padding: "5px 11px", borderRadius: 99, cursor: "pointer",
+                padding: "6px 12px", borderRadius: 99, cursor: "pointer",
                 border: `1px solid ${name === label ? T.brass : T.line}`,
-                background: name === label ? T.brassSoft : T.card,
-                color: T.ink, fontFamily: T.sans, fontSize: 12,
+                background: name === label ? T.brassSoft : "transparent",
+                color: name === label ? T.ink : T.mute,
+                fontFamily: T.sans, fontSize: 12.5, fontWeight: 500,
               }}>{label}</button>
           ))}
         </div>
@@ -186,7 +187,7 @@ function IncomeSection({ incomes, month, paidMap, transactions, addIncome, delet
 
   return (
     <>
-      <Card style={{ background: T.incomeTint, borderColor: T.pos }}>
+      <Card>
         <SectionTitle>Add expected income</SectionTitle>
         <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
           <input value={name} placeholder="Name — e.g. Paycheck"

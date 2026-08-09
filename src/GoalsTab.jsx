@@ -19,7 +19,7 @@ export function Goals({ goals, addGoal, fundGoal, deleteGoal }) {
 
   return (
     <div style={{ display: "grid", gap: 14, marginTop: 14 }}>
-      <Card style={{ background: T.cardTint, borderColor: T.brass }}>
+      <Card>
         <SectionTitle>Start a savings goal</SectionTitle>
         <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
           <input value={name} placeholder="Goal name — e.g. Emergency fund"
@@ -39,8 +39,18 @@ export function Goals({ goals, addGoal, fundGoal, deleteGoal }) {
         return (
           <Card key={g.id}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-              <h3 style={{ margin: 0, fontFamily: T.serif, fontSize: 17, flex: 1, color: T.ink }}>
-                {g.name} {done && <span style={{ color: T.brass }}>✦ reached</span>}
+              <h3 style={{
+                margin: 0, fontFamily: T.sans, fontSize: 15, fontWeight: 600,
+                letterSpacing: "-0.015em", flex: 1, color: T.ink,
+                display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+              }}>
+                {g.name}
+                {done && (
+                  <span style={{
+                    fontSize: 11.5, fontWeight: 600, padding: "2px 8px", borderRadius: 99,
+                    background: T.brassSoft, color: T.pos,
+                  }}>Reached</span>
+                )}
               </h3>
               <span style={{ fontSize: 13, color: T.mute, fontVariantNumeric: "tabular-nums" }}>
                 {fmt(g.saved)} of {fmt(g.target)} · {Math.min(Math.round(ratio * 100), 100)}%

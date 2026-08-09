@@ -12,7 +12,12 @@ in `localStorage` under the key `budget-book-v1`; there is no backend.
   tokens; charts use concrete per-theme colors from `CHART`), `constants.js`,
   `utils.js` (pure helpers incl. rollover math), `csv.js` (bank import).
 - Theming: light/dark via `data-theme` on `<html>`; tokens are CSS variables
-  in `index.css`. Category colors are colorblind-validated — see constants.js.
+  in `index.css`, surfaced as `T.*` in theme.js. Visual language is flat and
+  modern: one accent (emerald), Inter only, hairline borders, 16px radii,
+  tight tracking on large numerals. No display serif, textures, or gradients.
+- Chart colors live in `CHART.light/.dark` in theme.js — each set is validated
+  for colorblind separation against its own surface. Re-run the dataviz
+  `validate_palette.js` six checks before changing any of them.
 - Dev server: `npm run dev` (Vite, port 5173). Tests: `npm test` (vitest).
 - Deploys to GitHub Pages on push to main (`.github/workflows/deploy.yml`).
 

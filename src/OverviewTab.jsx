@@ -41,10 +41,12 @@ export function Overview({
                     paddingAngle={2} cornerRadius={3} stroke={C.card} strokeWidth={2}>
                     {pieData.map((d) => <Cell key={d.name} fill={catColor(d.name)} />)}
                   </Pie>
-                  <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle"
-                    style={{ fontFamily: T.serif, fontSize: 21, fill: C.ink }}>{fmt(expenses)}</text>
-                  <text x="50%" y="46%" dy={20} textAnchor="middle" dominantBaseline="middle"
-                    style={{ fontFamily: T.sans, fontSize: 10, letterSpacing: "0.16em", fill: C.mute }}>SPENT</text>
+                  <text x="50%" y="45%" textAnchor="middle" dominantBaseline="middle"
+                    style={{ fontFamily: T.sans, fontSize: 22, fontWeight: 650, letterSpacing: "-0.03em", fill: C.ink }}>
+                    {fmt(expenses)}
+                  </text>
+                  <text x="50%" y="45%" dy={19} textAnchor="middle" dominantBaseline="middle"
+                    style={{ fontFamily: T.sans, fontSize: 11.5, fill: C.mute }}>spent</text>
                   <Tooltip formatter={(v) => fmt(v)} contentStyle={tooltipStyle} />
                 </PieChart>
               </ResponsiveContainer>
@@ -115,12 +117,15 @@ export function Overview({
       </Card>
 
       {insights.length > 0 && (
-        <Card style={{ gridColumn: "1 / -1", background: T.cardTint }}>
-          <SectionTitle>Ledger notes</SectionTitle>
-          <div style={{ display: "grid", gap: 8 }}>
+        <Card style={{ gridColumn: "1 / -1" }}>
+          <SectionTitle>Insights</SectionTitle>
+          <div style={{ display: "grid", gap: 10 }}>
             {insights.map((line) => (
-              <div key={line} style={{ display: "flex", gap: 9, fontSize: 14, alignItems: "baseline" }}>
-                <span aria-hidden style={{ color: T.brass, fontSize: 12, flexShrink: 0 }}>✦</span>
+              <div key={line} style={{ display: "flex", gap: 10, fontSize: 14, alignItems: "flex-start", lineHeight: 1.5 }}>
+                <span aria-hidden style={{
+                  width: 5, height: 5, borderRadius: "50%", background: T.brass,
+                  flexShrink: 0, marginTop: 7,
+                }} />
                 <span>{line}</span>
               </div>
             ))}
@@ -131,7 +136,7 @@ export function Overview({
       <Card style={{ gridColumn: "1 / -1" }}>
         <SectionTitle>Recent entries</SectionTitle>
         {recent.length === 0
-          ? <Empty text="Nothing recorded this month. Use “+ Add entry” to write your first line." />
+          ? <Empty text="Nothing recorded this month yet. Add your first entry to get started." />
           : <TxList list={recent} />}
       </Card>
     </div>

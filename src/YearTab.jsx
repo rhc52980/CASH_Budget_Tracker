@@ -5,7 +5,7 @@ import {
 import { T } from "./theme.js";
 import { useApp } from "./ctx.js";
 import { fmt, kFmt, monthKey, monthLabel } from "./utils.js";
-import { Card, SectionTitle, Empty, tooltipStyle } from "./ui.jsx";
+import { Card, SectionTitle, Empty, tooltipStyle, numeral } from "./ui.jsx";
 
 export function YearTab({ transactions, month }) {
   const { chart: C, catColor } = useApp();
@@ -58,13 +58,13 @@ export function YearTab({ transactions, month }) {
         <SectionTitle>{year} at a glance</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, textAlign: "center" }}>
           {[
-            ["Money in", fmt(totals.In), T.pos],
-            ["Money out", fmt(totals.Out), T.neg],
+            ["Money in", fmt(totals.In), T.ink],
+            ["Money out", fmt(totals.Out), T.ink],
             ["Net", (totals.Net >= 0 ? "+" : "−") + fmt(Math.abs(totals.Net)), totals.Net >= 0 ? T.pos : T.neg],
           ].map(([label, val, color]) => (
-            <div key={label} style={{ padding: "8px 4px" }}>
-              <div style={{ fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: T.mute }}>{label}</div>
-              <div style={{ fontFamily: T.serif, fontSize: 24, marginTop: 4, color, fontVariantNumeric: "tabular-nums" }}>{val}</div>
+            <div key={label} style={{ padding: "6px 4px" }}>
+              <div style={{ fontSize: 13, color: T.mute, fontWeight: 500 }}>{label}</div>
+              <div style={{ ...numeral(26), marginTop: 5, color }}>{val}</div>
             </div>
           ))}
         </div>
@@ -106,7 +106,7 @@ export function YearTab({ transactions, month }) {
         </div>
       </Card>
 
-      <Card style={{ background: T.cardTint }}>
+      <Card>
         <SectionTitle>Year notes</SectionTitle>
         <div style={{ display: "grid", gap: 8, fontSize: 14 }}>
           {best && <Note text={`Best month: ${monthLabel(best.ym)} at ${(best.Net >= 0 ? "+" : "−") + fmt(Math.abs(best.Net))} net.`} />}
@@ -125,8 +125,11 @@ export function YearTab({ transactions, month }) {
 
 function Note({ text }) {
   return (
-    <div style={{ display: "flex", gap: 9, alignItems: "baseline" }}>
-      <span aria-hidden style={{ color: T.brass, fontSize: 12, flexShrink: 0 }}>✦</span>
+    <div style={{ display: "flex", gap: 10, alignItems: "flex-start", lineHeight: 1.5 }}>
+      <span aria-hidden style={{
+        width: 5, height: 5, borderRadius: "50%", background: T.brass,
+        flexShrink: 0, marginTop: 7,
+      }} />
       <span>{text}</span>
     </div>
   );
