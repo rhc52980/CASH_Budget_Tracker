@@ -353,10 +353,11 @@ export default function BudgetBook() {
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div aria-hidden style={{
                 width: 48, height: 48, borderRadius: "50%", flexShrink: 0,
-                background: "radial-gradient(circle at 36% 30%, #F7E8C1, #E7CC8F 55%, #CDA95C)",
-                boxShadow: "inset 0 0 0 2px rgba(168,127,53,0.55), inset 0 0 0 7px rgba(168,127,53,0.18), 0 2px 8px rgba(0,0,0,0.35)",
+                background: "radial-gradient(circle at 36% 30%, #F0B285, #C97C4A 58%, #9C5A2E)",
+                boxShadow: "inset 0 0 0 3px rgba(140,79,38,0.6), inset 0 0 0 8px rgba(140,79,38,0.2), 0 2px 8px rgba(0,0,0,0.35)",
                 display: "grid", placeItems: "center",
-                fontFamily: T.serif, fontSize: 25, fontWeight: 700, color: "#1E4234",
+                fontFamily: T.serif, fontSize: 25, fontWeight: 700, color: "#5C3317",
+                textShadow: "1px 1px 0 rgba(247,203,163,0.55)",
               }}>¢</div>
               <div>
                 <div style={{ fontFamily: T.sans, fontSize: 11, letterSpacing: "0.24em", textTransform: "uppercase", color: T.headerSub }}>
@@ -366,7 +367,7 @@ export default function BudgetBook() {
                   margin: "2px 0 0", fontFamily: T.serif, fontWeight: 600, fontSize: 34,
                   letterSpacing: "0.05em", textShadow: "0 1px 0 rgba(0,0,0,0.3)",
                 }}>
-                  <span style={{ color: T.goldInk }}>¢</span>ASH
+                  CASH
                 </h1>
               </div>
             </div>

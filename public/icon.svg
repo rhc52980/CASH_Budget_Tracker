@@ -1,23 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0.1" y2="1">
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#26523F"/>
       <stop offset="1" stop-color="#183429"/>
     </linearGradient>
-    <radialGradient id="coin" cx="0.38" cy="0.32" r="0.85">
-      <stop offset="0" stop-color="#F7E8C1"/>
-      <stop offset="0.55" stop-color="#E7CC8F"/>
-      <stop offset="1" stop-color="#CDA95C"/>
+    <radialGradient id="rim" cx="0.38" cy="0.32" r="0.9">
+      <stop offset="0" stop-color="#C97C4A"/>
+      <stop offset="1" stop-color="#8C4F26"/>
+    </radialGradient>
+    <radialGradient id="face" cx="0.38" cy="0.32" r="0.9">
+      <stop offset="0" stop-color="#F0B285"/>
+      <stop offset="0.55" stop-color="#C97C4A"/>
+      <stop offset="1" stop-color="#9C5A2E"/>
     </radialGradient>
   </defs>
   <rect width="512" height="512" rx="100" fill="url(#bg)"/>
-  <!-- reeded edge -->
-  <circle cx="256" cy="256" r="172" fill="none" stroke="#B98A2F" stroke-width="16"
-    stroke-dasharray="8 14.055"/>
-  <!-- coin face -->
-  <circle cx="256" cy="256" r="164" fill="url(#coin)"/>
-  <circle cx="256" cy="256" r="163" fill="none" stroke="#A87F35" stroke-width="3" opacity="0.7"/>
-  <circle cx="256" cy="256" r="132" fill="none" stroke="#A87F35" stroke-width="3" opacity="0.55"/>
-  <text x="256" y="272" font-family="Georgia, 'Times New Roman', serif" font-size="220"
-    font-weight="bold" fill="#1E4234" text-anchor="middle" dominant-baseline="middle">&#162;</text>
+  <!-- penny: smooth raised rim, then the face -->
+  <circle cx="256" cy="256" r="178" fill="url(#rim)"/>
+  <circle cx="256" cy="256" r="160" fill="url(#face)"/>
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#8C4F26" stroke-width="2" opacity="0.8"/>
+  <circle cx="256" cy="256" r="144" fill="none" stroke="#8C4F26" stroke-width="3" opacity="0.35"/>
+  <!-- struck cent: light edge below-right gives the pressed look -->
+  <text x="259" y="278" font-family="Georgia, 'Times New Roman', serif" font-size="230"
+    font-weight="bold" fill="#F7CBA3" opacity="0.6" text-anchor="middle" dominant-baseline="middle">&#162;</text>
+  <text x="256" y="274" font-family="Georgia, 'Times New Roman', serif" font-size="230"
+    font-weight="bold" fill="#5C3317" text-anchor="middle" dominant-baseline="middle">&#162;</text>
 </svg>
