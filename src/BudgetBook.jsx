@@ -27,6 +27,17 @@ const EXPENSE_CATS = [
 ];
 const INCOME_CATS = ["Salary", "Freelance", "Gifts", "Other income"];
 
+// Common bills: [name, default category] — one click prefills the add-bill form
+const BILL_PRESETS = [
+  ["Rent", "Housing"], ["Mortgage", "Housing"],
+  ["Electric", "Utilities"], ["Gas", "Utilities"], ["Water", "Utilities"],
+  ["Trash", "Utilities"], ["Internet", "Utilities"], ["Mobile phone", "Utilities"],
+  ["TV / Cable", "Subscriptions"], ["Streaming", "Subscriptions"],
+  ["Auto payment", "Transport"], ["Auto insurance", "Transport"], ["Boat payment", "Transport"],
+  ["Health insurance", "Health"], ["Gym", "Health"],
+  ["Credit card", "Other"], ["Student loan", "Other"], ["Childcare", "Other"],
+];
+
 const CAT_COLORS = {
   Housing: "#22493C", Groceries: "#2E7D5B", Dining: "#B98A2F",
   Transport: "#4E7A8A", Utilities: "#6B7A72", Health: "#7A5C8A",
@@ -502,8 +513,20 @@ function Bills({ bills, month, paidMap, transactions, addBill, deleteBill, markP
     <div style={{ display: "grid", gap: 14, marginTop: 14 }}>
       <Card style={{ background: "#FDFBF5", borderColor: T.brass }}>
         <SectionTitle>Add a monthly bill</SectionTitle>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+          {BILL_PRESETS.map(([label, cat]) => (
+            <button key={label}
+              onClick={() => { setName(label); setCategory(cat); setErr(""); }}
+              style={{
+                padding: "5px 11px", borderRadius: 99, cursor: "pointer",
+                border: `1px solid ${name === label ? T.brass : T.line}`,
+                background: name === label ? T.brassSoft : "#fff",
+                color: T.ink, fontFamily: T.sans, fontSize: 12,
+              }}>{label}</button>
+          ))}
+        </div>
         <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
-          <input value={name} placeholder="Bill name — e.g. Rent"
+          <input value={name} placeholder="Bill name — pick above or type"
             onChange={(e) => { setName(e.target.value); setErr(""); }} style={inputStyle} />
           <input type="number" min="0" step="0.01" value={amount} placeholder="Amount"
             onChange={(e) => { setAmount(e.target.value); setErr(""); }} style={inputStyle} />
