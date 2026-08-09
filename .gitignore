@@ -1,0 +1,38 @@
+# Claude Code local config
+.claude/
+
+# Environment & secrets
+.env
+.env.local
+*.local.json
+
+# Databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Dependencies & build output
+node_modules/
+dist/
+build/
+[Bb]in/
+[Oo]bj/
+__pycache__/
+.venv/
+venv/
+
+# Editors
+.vs/
+.idea/
+.vscode/
+
+# OS cruft
+Thumbs.db
+desktop.ini
+.DS_Store
