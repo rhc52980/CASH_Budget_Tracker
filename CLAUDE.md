@@ -7,6 +7,12 @@ CASH — Count All Spending Habits. Personal budgeting / ledger application.
 Stack: React 18 + Vite, Recharts for charts. Client-only SPA — data persists
 in `localStorage` under the key `budget-book-v1`; there is no backend.
 
+- Persistence lives in `src/storage.js` and is deliberately defensive: a
+  failed/corrupt read is reported (never swallowed), the caller then refuses to
+  auto-save so the original bytes survive, and unreadable data is quarantined
+  under a `cash-recovery-*` key. Rolling snapshots (`cash-snap-*`, max 5, one
+  per 6h) give a rollback path; the live ledger outranks them under quota
+  pressure. Don't reintroduce a bare `localStorage.setItem` for ledger data.
 - App entry: `src/main.jsx` → `src/BudgetBook.jsx` (state + orchestration).
   Tabs live in `src/*Tab.jsx`; shared pieces in `ui.jsx`, `theme.js` (CSS-var
   tokens; charts use concrete per-theme colors from `CHART`), `constants.js`,

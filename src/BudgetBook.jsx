@@ -1,7 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { T, CHART } from "./theme.js";
 import { AppCtx } from "./ctx.js";
-import { STORE_KEY, EXPENSE_CATS, INCOME_CATS } from "./constants.js";
+import { EXPENSE_CATS, INCOME_CATS } from "./constants.js";
+import {
+  DEFAULTS, loadLedger, saveLedger, takeSnapshot, quarantine,
+  requestPersistence, markExported,
+} from "./storage.js";
 import {
   fmt, uid, monthKey, todayStr, monthLabel, shiftMonth, dueDateInMonth, computeCarry,
 } from "./utils.js";
@@ -15,11 +19,7 @@ import { Goals } from "./GoalsTab.jsx";
 import { Transactions } from "./TransactionsTab.jsx";
 import { YearTab } from "./YearTab.jsx";
 import { CsvImportModal } from "./CsvImportModal.jsx";
-
-const DEFAULTS = {
-  transactions: [], budgets: {}, goals: [], bills: [], billPaid: {},
-  incomes: [], incomePaid: {}, budgetRollover: {}, customCats: [],
-};
+import { BackupPanel } from "./BackupPanel.jsx";
 
 const initialDark = () => {
   const saved = localStorage.getItem("cash-theme");
@@ -39,6 +39,10 @@ export default function BudgetBook() {
   const [dark, setDark] = useState(initialDark);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 640px)").matches);
   const [updateReady, setUpdateReady] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [loadProblem, setLoadProblem] = useState(null);
+  const [persistence, setPersistence] = useState(null);
+  const [showBackup, setShowBackup] = useState(false);
 
   useEffect(() => {
     const onReady = () => setUpdateReady(true);
@@ -58,23 +62,27 @@ export default function BudgetBook() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  // Load once
+  // Load once. If the stored bytes can't be read, we park them and refuse to
+  // write anything until the user decides — overwriting them would destroy
+  // the only copy of their ledger.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORE_KEY);
-      if (raw) setData({ ...DEFAULTS, ...JSON.parse(raw) });
-    } catch (e) {
-      // No saved data yet - start fresh
+    const res = loadLedger();
+    setData(res.data);
+    if (!res.ok) {
+      setLoadProblem({ reason: res.reason, key: quarantine(res.raw) });
+    } else {
+      takeSnapshot();
+      requestPersistence().then(setPersistence);
     }
     setLoaded(true);
   }, []);
 
   // Save on change
   useEffect(() => {
-    if (!loaded) return;
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
-    catch (e) { console.error("Save failed", e); }
-  }, [data, loaded]);
+    if (!loaded || loadProblem) return;
+    const res = saveLedger(data);
+    setSaveError(res.ok ? null : res.error);
+  }, [data, loaded, loadProblem]);
 
   const chart = CHART[dark ? "dark" : "light"];
   const customMap = useMemo(() => new Map(data.customCats.map((c) => [c.name, c.color])), [data.customCats]);
@@ -297,7 +305,7 @@ export default function BudgetBook() {
     a.download = `cash-backup-${todayStr()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    localStorage.setItem("cash-last-export", String(Date.now()));
+    markExported();
   };
 
   const importData = (file) => {
@@ -392,6 +400,20 @@ export default function BudgetBook() {
       </header>
 
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 20px" }}>
+        {loadProblem && (
+          <Banner tone="danger"
+            text={`Your saved ledger couldn't be read (${loadProblem.reason}), so CASH has stopped saving to avoid overwriting it. The original data is still on this device${loadProblem.key ? "" : ""} — restore a snapshot or a backup file to continue.`}
+            actionLabel="Open backup & data"
+            onAction={() => setShowBackup(true)} />
+        )}
+        {saveError && !loadProblem && (
+          <Banner tone="danger"
+            text={saveError === "quota"
+              ? "This browser is out of storage space, so your latest changes are not being saved. Export a backup now, then free up space."
+              : "This browser is blocking storage, so your changes are not being saved. Private browsing can cause this. Export a backup to keep your data."}
+            actionLabel="Export backup"
+            onAction={exportData} />
+        )}
         <BackupNudge transactions={data.transactions} onExport={exportData} />
 
         {/* ----- Summary ----- */}
@@ -422,26 +444,11 @@ export default function BudgetBook() {
           )}
           <div style={{ flex: 1 }} />
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-            <button onClick={exportData} title="Download a JSON backup of all your data"
-              style={{ ...ghostBtn, padding: "8px 12px", fontSize: 13, color: T.mute }}>Export</button>
-            <label title="Restore from a JSON backup"
-              style={{ ...ghostBtn, padding: "8px 12px", fontSize: 13, color: T.mute, display: "inline-block" }}>
-              Import
-              <input type="file" accept=".json,application/json" style={{ display: "none" }}
-                onChange={(e) => {
-                  if (e.target.files[0]) importData(e.target.files[0]);
-                  e.target.value = "";
-                }} />
-            </label>
-            <label title="Import transactions from a bank CSV export"
-              style={{ ...ghostBtn, padding: "8px 12px", fontSize: 13, color: T.mute, display: "inline-block" }}>
-              Import CSV
-              <input type="file" accept=".csv,text/csv" style={{ display: "none" }}
-                onChange={(e) => {
-                  if (e.target.files[0]) importCsv(e.target.files[0]);
-                  e.target.value = "";
-                }} />
-            </label>
+            <button onClick={() => setShowBackup(true)}
+              title="Backups, snapshots, and imports"
+              style={{ ...ghostBtn, padding: "8px 12px", fontSize: 13, color: T.mute }}>
+              Backup &amp; data
+            </button>
             {!isMobile && (
               <button onClick={() => setShowAdd((s) => !s)} style={btn(T.brass)}>
                 {showAdd ? "Close" : "New entry"}
@@ -533,6 +540,15 @@ export default function BudgetBook() {
         </div>
       )}
 
+      {showBackup && (
+        <BackupPanel data={data} persistence={persistence}
+          onExport={exportData}
+          onImportJson={(f) => { importData(f); setShowBackup(false); }}
+          onImportCsv={(f) => { importCsv(f); setShowBackup(false); }}
+          onRestore={(snap) => { setLoadProblem(null); setData(snap); }}
+          onClose={() => setShowBackup(false)} />
+      )}
+
       {csvPreview && (
         <CsvImportModal preview={csvPreview}
           onConfirm={(rows) => {
@@ -563,6 +579,25 @@ function Stat({ label, value, color, signed, emphasis }) {
         marginTop: 6, color: color || T.ink,
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
       }}>{text}</div>
+    </div>
+  );
+}
+
+function Banner({ text, actionLabel, onAction, tone }) {
+  const danger = tone === "danger";
+  return (
+    <div style={{
+      marginTop: 16, padding: "12px 14px", borderRadius: 12,
+      border: `1px solid ${danger ? T.neg : T.line}`,
+      background: danger ? "transparent" : T.brassSoft,
+      display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+      fontSize: 13.5, color: T.ink, lineHeight: 1.5,
+    }}>
+      <span style={{ flex: 1, minWidth: 200 }}>{text}</span>
+      <button onClick={onAction}
+        style={{ ...btn(danger ? T.neg : T.brass, "#fff"), padding: "7px 13px", fontSize: 13 }}>
+        {actionLabel}
+      </button>
     </div>
   );
 }

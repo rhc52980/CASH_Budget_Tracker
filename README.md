@@ -32,7 +32,8 @@ Pushes to `main` deploy automatically to GitHub Pages via Actions.
 - **Goals** — savings goals you can fund incrementally
 - **Transactions** — full monthly ledger with search, type/category filters, inline editing, and delete
 - **Split entries** — divide one receipt across several categories in the add form
-- **Export / Import** — download all data as a JSON backup, or restore from one
+- **Backup & data panel** — export/restore backup files, browse automatic
+  local snapshots and roll back to one, and see storage protection status
 - **CSV import** — load a bank statement export; columns are auto-detected, categories
   guessed from merchant names, and likely duplicates flagged before anything is saved
 - **Year view** — annual totals, net by month, category breakdown, and year notes
