@@ -1,8 +1,9 @@
-name: Deploy to GitHub Pages
+name: CI and deploy
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -15,7 +16,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  # Always runs, and passes whether or not Pages is set up. This is the job
+  # worth reading: if it is red, something is genuinely broken.
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,17 +29,26 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
+  # Publishing needs GitHub Pages enabled on the repo, which a private repo on
+  # the free plan cannot do. Marked continue-on-error so an unavailable Pages
+  # setup does not report the whole run — and the tests above — as failed.
+  # It starts working on its own once Pages is available.
   deploy:
-    needs: build
+    needs: ci
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    continue-on-error: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Enable Pages if the plan allows it
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - id: deployment
         uses: actions/deploy-pages@v4
