@@ -22,6 +22,7 @@ import { YearTab } from "./YearTab.jsx";
 import { CsvImportModal } from "./CsvImportModal.jsx";
 import { BackupPanel } from "./BackupPanel.jsx";
 import logoUrl from "./assets/logo.png";
+import { APP_VERSION } from "./version.js";
 
 const VALID_THEMES = ["auto", "light", "dark", "midnight", "contrast"];
 const systemPrefersDark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -325,7 +326,9 @@ export default function BudgetBook() {
   };
 
   const exportData = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    // Stamp which build wrote the file so a future version can migrate it
+    const payload = { ...data, appVersion: APP_VERSION, exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -341,8 +344,13 @@ export default function BudgetBook() {
       try {
         const parsed = JSON.parse(reader.result);
         if (!parsed || !Array.isArray(parsed.transactions)) throw new Error("bad shape");
-        if (window.confirm("Replace your current ledger with this backup? All existing data will be overwritten.")) {
-          setData({ ...DEFAULTS, ...parsed });
+        const wrote = parsed.appVersion ? ` (written by v${parsed.appVersion})` : "";
+        if (window.confirm(
+          `Replace your current ledger with this backup${wrote}? All existing data will be overwritten.`
+        )) {
+          // File-only metadata; don't let it linger in live state and go stale
+          const { appVersion, exportedAt, ...ledger } = parsed;
+          setData({ ...DEFAULTS, ...ledger });
         }
       } catch {
         window.alert("That file doesn't look like a CASH backup.");
@@ -526,6 +534,14 @@ export default function BudgetBook() {
         {tab === "year" && (
           <YearTab transactions={data.transactions} month={month} />
         )}
+
+        <footer style={{
+          display: "flex", justifyContent: "flex-end",
+          padding: "20px 2px 4px", fontSize: 11.5, color: T.mute,
+          fontVariantNumeric: "tabular-nums",
+        }}>
+          <span title={`CASH version ${APP_VERSION}`}>v{APP_VERSION}</span>
+        </footer>
       </div>
 
       {/* ----- Mobile: bottom tab bar + floating add button ----- */}

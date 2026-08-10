@@ -3,8 +3,14 @@ setlocal
 title CASH - Count All Spending Habits
 cd /d "%~dp0"
 
+where node >nul 2>nul
+if not errorlevel 1 (
+  for /f "usebackq delims=" %%v in (`node -p "require('./package.json').version" 2^>nul`) do set "CASHVER=%%v"
+)
+if not defined CASHVER set "CASHVER=?"
+
 echo ===============================================
-echo   CASH - Count All Spending Habits
+echo   CASH - Count All Spending Habits   v%CASHVER%
 echo ===============================================
 echo.
 

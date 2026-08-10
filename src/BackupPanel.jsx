@@ -5,6 +5,7 @@ import { Card, SectionTitle, btn, ghostBtn } from "./ui.jsx";
 import {
   listSnapshots, readSnapshot, storageUsage, lastExportAt, requestPersistence,
 } from "./storage.js";
+import { APP_VERSION } from "./version.js";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -73,6 +74,7 @@ export function BackupPanel({ data, onExport, onImportJson, onImportCsv, onResto
           </p>
 
           <div style={{ marginTop: 14 }}>
+            <Row label="App version" value={`v${APP_VERSION}`} />
             <Row label="Entries saved" value={`${entryCount} · ${data.bills.length} bills · ${data.goals.length} goals`} />
             <Row label="Last exported file"
               value={lastExport ? ago(lastExport) : "never"}

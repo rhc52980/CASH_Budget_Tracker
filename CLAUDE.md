@@ -7,6 +7,12 @@ CASH — Count All Spending Habits. Personal budgeting / ledger application.
 Stack: React 18 + Vite, Recharts for charts. Client-only SPA — data persists
 in `localStorage` under the key `budget-book-v1`; there is no backend.
 
+- Version: `package.json` `version` is the single source of truth. Vite injects
+  it as `__APP_VERSION__`; read it via `src/version.js`. It shows in the page
+  footer, the Backup & data panel, the launcher banner, and is stamped into
+  exported backups as `appVersion`. To release, bump `package.json` and commit.
+  This is separate from `SCHEMA_VERSION` in storage.js, which versions the data
+  shape — bump that only when the stored ledger structure changes.
 - Persistence lives in `src/storage.js` and is deliberately defensive: a
   failed/corrupt read is reported (never swallowed), the caller then refuses to
   auto-save so the original bytes survive, and unreadable data is quarantined

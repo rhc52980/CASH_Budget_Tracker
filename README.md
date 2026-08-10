@@ -34,6 +34,13 @@ address bar (a monitor with a downward arrow), or use the ⋮ menu →
 menu and opens in its own window. You still need to run `Start-CASH.bat` first,
 because the app is served from your own machine.
 
+## Versioning
+
+The version shown in the bottom-right corner of the app comes from
+`package.json`. Bump it there when you make a change worth marking; it flows to
+the footer, the Backup & data panel, the launcher banner, and every exported
+backup file.
+
 ## For developers
 
 ```

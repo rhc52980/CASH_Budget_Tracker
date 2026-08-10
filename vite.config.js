@@ -35,9 +35,14 @@ function serviceWorkerPrecache() {
   };
 }
 
+// package.json is the single source of truth for the version; bump it there
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+
 export default defineConfig({
   plugins: [react(), serviceWorkerPrecache()],
-  // Relative base so the build works at any path — GitHub Pages serves the
-  // app from /CASH_Budget_Tracker/, local preview from /
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
+  // Relative base so the build works from any folder
   base: "./",
 });
