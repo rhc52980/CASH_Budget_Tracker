@@ -15,6 +15,15 @@ if errorlevel 1 (
   exit /b 1
 )
 
+REM If CASH is already serving, just show it. Clicking the icon should always
+REM mean "open CASH", never "start a second copy and fail because the first
+REM one holds the port".
+netstat -ano | findstr /c:":4173 " | findstr LISTENING >nul 2>nul
+if not errorlevel 1 (
+  start "" "http://localhost:4173"
+  exit /b 0
+)
+
 if not exist "node_modules\" goto needsetup
 if not exist "dist\index.html" goto needsetup
 
