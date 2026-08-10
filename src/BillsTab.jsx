@@ -14,6 +14,7 @@ export function Bills({
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(expenseCats[0]);
   const [dueDay, setDueDay] = useState("1");
+  const [autoPay, setAutoPay] = useState(false);
   const [err, setErr] = useState("");
   const [editId, setEditId] = useState(null);
 
@@ -28,8 +29,13 @@ export function Bills({
     if (!name.trim()) { setErr("Give the bill a name."); return; }
     if (!amt || amt <= 0) { setErr("Enter an amount greater than zero."); return; }
     if (!day || day < 1 || day > 31) { setErr("Due day must be between 1 and 31."); return; }
-    addBill({ id: uid(), name: name.trim(), amount: amt, category, dueDay: day });
-    setName(""); setAmount(""); setDueDay("1"); setErr("");
+    // createdAt bounds auto-pay: it must never invent payments for months
+    // before the bill existed
+    addBill({
+      id: uid(), name: name.trim(), amount: amt, category, dueDay: day,
+      autoPay, createdAt: todayStr(),
+    });
+    setName(""); setAmount(""); setDueDay("1"); setAutoPay(false); setErr("");
   };
 
   const sorted = [...bills].sort((a, b) => a.dueDay - b.dueDay);
@@ -65,6 +71,20 @@ export function Bills({
             onChange={(e) => { setDueDay(e.target.value); setErr(""); }} style={inputStyle} />
           <button onClick={create} style={btn(T.brass)}>Add bill</button>
         </div>
+        <label style={{
+          display: "inline-flex", alignItems: "center", gap: 8, marginTop: 12,
+          fontSize: 13.5, color: T.ink, cursor: "pointer", userSelect: "none",
+        }}>
+          <input type="checkbox" checked={autoPay} onChange={(e) => setAutoPay(e.target.checked)}
+            style={{ accentColor: "var(--accent)" }} />
+          <span>
+            Auto-pay
+            <span style={{ color: T.mute }}>
+              {" "}— pays itself on the due day, no checking off. Best for fixed
+              amounts like rent or a car loan.
+            </span>
+          </span>
+        </label>
         {err && <div style={{ color: T.neg, fontSize: 13, marginTop: 8 }}>{err}</div>}
       </Card>
 
@@ -83,6 +103,7 @@ export function Bills({
           {sorted.map((b, i) => {
             if (editId === b.id) {
               return <RecurringEditRow key={b.id} item={b} dayField="dueDay" cats={expenseCats} topBorder={i > 0}
+                showAutoPay
                 onSave={(patch) => { updateBill(b.id, patch); setEditId(null); }}
                 onCancel={() => setEditId(null)} />;
             }
@@ -96,15 +117,30 @@ export function Bills({
               }}>
                 <span style={{ width: 10, height: 10, borderRadius: 3, flexShrink: 0, background: catColor(b.category) }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, textDecoration: paid ? "line-through" : "none" }}>{b.name}</div>
+                  <div style={{
+                    fontWeight: 600, textDecoration: paid ? "line-through" : "none",
+                    display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap",
+                  }}>
+                    {b.name}
+                    {b.autoPay && (
+                      <span title="Pays itself on the due day" style={{
+                        fontSize: 10.5, fontWeight: 600, letterSpacing: "0.04em",
+                        padding: "1px 7px", borderRadius: 99, textDecoration: "none",
+                        background: T.brassSoft, color: T.ink, border: `1px solid ${T.line}`,
+                      }}>AUTO</span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 12, color: overdue ? T.neg : T.mute }}>
-                    {b.category} · due the {ordinal(b.dueDay)}{overdue && " — overdue"}
+                    {b.category} · due the {ordinal(b.dueDay)}
+                    {overdue && " — overdue"}
+                    {b.autoPay && !paid && !overdue && " — will pay itself"}
                   </div>
                 </div>
                 <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600, minWidth: 80, textAlign: "right" }}>
                   {fmt(b.amount)}
                 </span>
                 <button onClick={() => (paid ? unmarkPaid(b) : markPaid(b))}
+                  title={b.autoPay && paid ? "Paid automatically — click to undo for this month" : undefined}
                   style={paid
                     ? { ...btn(T.paper, T.pos), border: `1px solid ${T.line}` }
                     : btn(T.pos)}>
@@ -128,17 +164,20 @@ export function Bills({
 }
 
 // Shared inline editor for bills (dueDay) and expected income (payDay)
-function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel }) {
+function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel, showAutoPay }) {
   const [name, setName] = useState(item.name);
   const [amount, setAmount] = useState(String(item.amount));
   const [category, setCategory] = useState(item.category);
   const [day, setDay] = useState(String(item[dayField]));
+  const [autoPay, setAutoPay] = useState(Boolean(item.autoPay));
 
   const save = () => {
     const amt = parseFloat(amount);
     const d = parseInt(day, 10);
     if (!name.trim() || !amt || amt <= 0 || !d || d < 1 || d > 31) return;
-    onSave({ name: name.trim(), amount: amt, category, [dayField]: d });
+    const patch = { name: name.trim(), amount: amt, category, [dayField]: d };
+    if (showAutoPay) patch.autoPay = autoPay;
+    onSave(patch);
   };
 
   return (
@@ -154,6 +193,16 @@ function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel })
       </select>
       <input type="number" min="1" max="31" value={day}
         onChange={(e) => setDay(e.target.value)} style={{ ...inputStyle, width: 70 }} />
+      {showAutoPay && (
+        <label style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          fontSize: 13, color: T.mute, cursor: "pointer", userSelect: "none",
+        }}>
+          <input type="checkbox" checked={autoPay} onChange={(e) => setAutoPay(e.target.checked)}
+            style={{ accentColor: "var(--accent)" }} />
+          auto-pay
+        </label>
+      )}
       <button onClick={save} style={{ ...btn(T.pos), padding: "8px 14px" }}>Save</button>
       <button onClick={onCancel} style={{ ...btn("transparent", T.mute), padding: "8px 10px" }}>Cancel</button>
     </div>

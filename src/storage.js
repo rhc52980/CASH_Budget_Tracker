@@ -12,6 +12,9 @@ export const DEFAULTS = {
   version: SCHEMA_VERSION,
   transactions: [], budgets: {}, goals: [], bills: [], billPaid: {},
   incomes: [], incomePaid: {}, budgetRollover: {}, customCats: [],
+  // month -> billId -> true. Records that the user undid an auto-pay for that
+  // month, so it is not immediately re-applied.
+  autoPaySkip: {},
 };
 
 // Shape check that's strict enough to catch corruption but loose enough to

@@ -80,7 +80,10 @@ Pages via Actions. See `CLAUDE.md` for architecture notes.
 
 - **Overview** — spending-by-category donut, recent entries, and a Trends chart
   with three views (in vs out, net, by category) over 3, 6, or 12 months
-- **Bills** — recurring monthly bills with due days; mark them paid each month and the payment is logged as an expense
+- **Bills** — recurring monthly bills with due days; mark them paid each month and
+  the payment is logged as an expense. Tick **auto-pay** for bills that leave your
+  account on their own — a car loan, rent, a subscription — and CASH logs them for
+  you on the due day instead of waiting to be checked off.
 - **Expected income** — recurring paychecks with pay days; mark them received and the income is logged automatically
 - **Budgets** — monthly limit per category with progress bars, over-budget warnings,
   and optional rollover that carries unspent budget (or overspending) into the next month

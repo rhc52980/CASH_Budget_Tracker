@@ -113,6 +113,47 @@ export default function BudgetBook() {
   }, [data, loaded, loadProblem]);
 
   const chart = CHART[resolvedTheme] || CHART.light;
+  // Auto-pay: once a bill's due day has arrived, log it without being asked.
+  // Never touches a future month, never a month before the bill existed, and
+  // never re-applies a payment the user has undone.
+  useEffect(() => {
+    if (!loaded || loadProblem) return;
+    const today = todayStr();
+    const nowYm = monthKey(today);
+    if (month > nowYm) return;
+
+    const skipped = data.autoPaySkip[month] || {};
+    const paid = data.billPaid[month] || {};
+    const liveTx = new Set(data.transactions.map((t) => t.id));
+
+    const due = data.bills.filter((b) => {
+      if (!b.autoPay || skipped[b.id]) return false;
+      if (paid[b.id] && liveTx.has(paid[b.id])) return false;
+      const startYm = b.createdAt ? monthKey(b.createdAt) : nowYm;
+      if (month < startYm) return false;
+      return dueDateInMonth(month, b.dueDay) <= today;
+    });
+    if (!due.length) return;
+
+    setData((d) => {
+      const added = [];
+      const map = { ...(d.billPaid[month] || {}) };
+      due.forEach((b) => {
+        const tx = {
+          id: uid(), type: "expense", amount: b.amount, category: b.category,
+          date: dueDateInMonth(month, b.dueDay), note: b.name, billId: b.id, autoPaid: true,
+        };
+        added.push(tx);
+        map[b.id] = tx.id;
+      });
+      return {
+        ...d,
+        transactions: [...d.transactions, ...added],
+        billPaid: { ...d.billPaid, [month]: map },
+      };
+    });
+  }, [loaded, loadProblem, data, month]);
+
   const customMap = useMemo(() => new Map(data.customCats.map((c) => [c.name, c.color])), [data.customCats]);
   const expenseCats = useMemo(() => [...EXPENSE_CATS, ...data.customCats.map((c) => c.name)], [data.customCats]);
   const allCats = useMemo(() => [...expenseCats, ...INCOME_CATS], [expenseCats]);
@@ -259,20 +300,29 @@ export default function BudgetBook() {
       id: uid(), type: "expense", amount: bill.amount, category: bill.category,
       date: dueDateInMonth(month, bill.dueDay), note: bill.name, billId: bill.id,
     };
+    const skipMonth = { ...(d.autoPaySkip[month] || {}) };
+    delete skipMonth[bill.id];
     return {
       ...d,
       transactions: [...d.transactions, tx],
       billPaid: { ...d.billPaid, [month]: { ...(d.billPaid[month] || {}), [bill.id]: tx.id } },
+      autoPaySkip: { ...d.autoPaySkip, [month]: skipMonth },
     };
   });
   const unmarkBillPaid = (bill) => setData((d) => {
     const monthMap = { ...(d.billPaid[month] || {}) };
     const txId = monthMap[bill.id];
     delete monthMap[bill.id];
+    // Undoing an auto-pay has to stick, or the effect below would just
+    // re-apply it on the next render
+    const skip = bill.autoPay
+      ? { ...d.autoPaySkip, [month]: { ...(d.autoPaySkip[month] || {}), [bill.id]: true } }
+      : d.autoPaySkip;
     return {
       ...d,
       transactions: d.transactions.filter((t) => t.id !== txId),
       billPaid: { ...d.billPaid, [month]: monthMap },
+      autoPaySkip: skip,
     };
   });
 
