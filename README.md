@@ -84,6 +84,10 @@ Pages via Actions. See `CLAUDE.md` for architecture notes.
   the payment is logged as an expense. Tick **auto-pay** for bills that leave your
   account on their own — a car loan, rent, a subscription — and CASH logs them for
   you on the due day instead of waiting to be checked off.
+- **Loan payoff** — tick **track payoff** on a bill and give it the balance owed
+  and interest rate. CASH shows what is left, how many payments remain, and the
+  month it clears — interest is charged before principal, so the figures are real
+  rather than a plain subtraction.
 - **Expected income** — recurring paychecks with pay days; mark them received and the income is logged automatically
 - **Budgets** — monthly limit per category with progress bars, over-budget warnings,
   and optional rollover that carries unspent budget (or overspending) into the next month

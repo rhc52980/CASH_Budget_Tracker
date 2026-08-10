@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   monthKey, monthDiff, shiftMonth, dueDateInMonth, ordinal, kFmt, computeCarry,
+  loanRemaining, loanPaymentsLeft,
 } from "./utils.js";
 
 describe("date helpers", () => {
@@ -44,6 +45,47 @@ describe("formatting", () => {
     expect(kFmt(1500)).toBe("$1.5k");
     expect(kFmt(-2200)).toBe("−$2.2k");
     expect(kFmt(0)).toBe("$0");
+  });
+});
+
+describe("loan payoff maths", () => {
+  it("with no interest a payment comes straight off the balance", () => {
+    expect(loanRemaining(1000, 0, 100, 3)).toBe(700);
+    expect(loanPaymentsLeft(1000, 0, 100)).toBe(10);
+  });
+
+  it("charges interest before principal", () => {
+    // 12% APR = 1% a month. First payment: $10 interest, $90 principal.
+    expect(loanRemaining(1000, 12, 100, 1)).toBeCloseTo(910, 6);
+    // Second: 1% of 910 = $9.10 interest, $90.90 principal.
+    expect(loanRemaining(1000, 12, 100, 2)).toBeCloseTo(819.1, 6);
+  });
+
+  it("never reports a negative balance once cleared", () => {
+    expect(loanRemaining(500, 0, 100, 20)).toBe(0);
+    expect(loanPaymentsLeft(0, 5, 100)).toBe(0);
+  });
+
+  it("takes more payments with interest than without", () => {
+    const plain = loanPaymentsLeft(10000, 0, 300);
+    const withApr = loanPaymentsLeft(10000, 7.5, 300);
+    expect(withApr).toBeGreaterThan(plain);
+    expect(withApr).toBeLessThan(60);
+  });
+
+  it("reports never-ending when the payment cannot cover the interest", () => {
+    // 24% APR on 10k = $200/month interest; a $150 payment loses ground
+    expect(loanPaymentsLeft(10000, 24, 150)).toBe(Infinity);
+    expect(loanRemaining(10000, 24, 150, 5)).toBe(10000);
+    expect(loanPaymentsLeft(1000, 0, 0)).toBe(Infinity);
+  });
+
+  it("a realistic car loan clears in a sensible number of payments", () => {
+    // $18,000 at 6.9% paying $412.50 -> roughly four years
+    const n = loanPaymentsLeft(18000, 6.9, 412.5);
+    expect(n).toBeGreaterThan(44);
+    expect(n).toBeLessThan(52);
+    expect(loanRemaining(18000, 6.9, 412.5, n)).toBe(0);
   });
 });
 

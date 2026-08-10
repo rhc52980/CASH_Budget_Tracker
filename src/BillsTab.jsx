@@ -2,7 +2,10 @@ import { useMemo, useState } from "react";
 import { T } from "./theme.js";
 import { useApp } from "./ctx.js";
 import { INCOME_CATS, BILL_PRESETS } from "./constants.js";
-import { fmt, uid, ordinal, monthLabel, dueDateInMonth, todayStr } from "./utils.js";
+import {
+  fmt, uid, ordinal, monthLabel, dueDateInMonth, todayStr, shiftMonth,
+  loanRemaining, loanPaymentsLeft,
+} from "./utils.js";
 import { Card, SectionTitle, Empty, ProgressBar, btn, inputStyle } from "./ui.jsx";
 
 export function Bills({
@@ -15,8 +18,19 @@ export function Bills({
   const [category, setCategory] = useState(expenseCats[0]);
   const [dueDay, setDueDay] = useState("1");
   const [autoPay, setAutoPay] = useState(false);
+  const [isLoan, setIsLoan] = useState(false);
+  const [loanBalance, setLoanBalance] = useState("");
+  const [loanApr, setLoanApr] = useState("");
   const [err, setErr] = useState("");
   const [editId, setEditId] = useState(null);
+
+  // Payments actually recorded against each bill, so undoing one corrects
+  // the payoff figures rather than leaving them adrift
+  const paymentsByBill = useMemo(() => {
+    const m = {};
+    transactions.forEach((t) => { if (t.billId) m[t.billId] = (m[t.billId] || 0) + 1; });
+    return m;
+  }, [transactions]);
 
   // A bill counts as paid only if its payment transaction still exists —
   // deleting the transaction from the ledger unmarks the bill
@@ -29,13 +43,17 @@ export function Bills({
     if (!name.trim()) { setErr("Give the bill a name."); return; }
     if (!amt || amt <= 0) { setErr("Enter an amount greater than zero."); return; }
     if (!day || day < 1 || day > 31) { setErr("Due day must be between 1 and 31."); return; }
+    const bal = parseFloat(loanBalance);
+    if (isLoan && (!bal || bal <= 0)) { setErr("Enter what you still owe on the loan."); return; }
     // createdAt bounds auto-pay: it must never invent payments for months
     // before the bill existed
     addBill({
       id: uid(), name: name.trim(), amount: amt, category, dueDay: day,
       autoPay, createdAt: todayStr(),
+      ...(isLoan ? { loanBalance: bal, loanApr: parseFloat(loanApr) || 0 } : {}),
     });
-    setName(""); setAmount(""); setDueDay("1"); setAutoPay(false); setErr("");
+    setName(""); setAmount(""); setDueDay("1"); setAutoPay(false);
+    setIsLoan(false); setLoanBalance(""); setLoanApr(""); setErr("");
   };
 
   const sorted = [...bills].sort((a, b) => a.dueDay - b.dueDay);
@@ -85,6 +103,33 @@ export function Bills({
             </span>
           </span>
         </label>
+        <label style={{
+          display: "flex", alignItems: "center", gap: 8, marginTop: 8,
+          fontSize: 13.5, color: T.ink, cursor: "pointer", userSelect: "none",
+        }}>
+          <input type="checkbox" checked={isLoan} onChange={(e) => setIsLoan(e.target.checked)}
+            style={{ accentColor: "var(--accent)" }} />
+          <span>
+            Track payoff
+            <span style={{ color: T.mute }}>
+              {" "}— for a loan. Shows what is left and when it clears.
+            </span>
+          </span>
+        </label>
+        {isLoan && (
+          <div style={{ display: "grid", gap: 10, marginTop: 10, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+            <label style={{ fontSize: 12, color: T.mute }}>Balance still owed
+              <input type="number" min="0" step="0.01" value={loanBalance} placeholder="18000"
+                onChange={(e) => { setLoanBalance(e.target.value); setErr(""); }}
+                style={{ ...inputStyle, marginTop: 4 }} />
+            </label>
+            <label style={{ fontSize: 12, color: T.mute }}>Interest rate % (optional)
+              <input type="number" min="0" step="0.01" value={loanApr} placeholder="6.9"
+                onChange={(e) => setLoanApr(e.target.value)}
+                style={{ ...inputStyle, marginTop: 4 }} />
+            </label>
+          </div>
+        )}
         {err && <div style={{ color: T.neg, fontSize: 13, marginTop: 8 }}>{err}</div>}
       </Card>
 
@@ -156,12 +201,63 @@ export function Bills({
         </Card>
       )}
 
+      {sorted.some((b) => b.loanBalance > 0) && (
+        <Card>
+          <SectionTitle>Loan payoff</SectionTitle>
+          <div style={{ display: "grid", gap: 18 }}>
+            {sorted.filter((b) => b.loanBalance > 0).map((b) => (
+              <LoanProgress key={b.id} bill={b} paymentsMade={paymentsByBill[b.id] || 0} />
+            ))}
+          </div>
+        </Card>
+      )}
+
       <IncomeSection incomes={incomes} month={month} paidMap={incomePaidMap}
         transactions={transactions} addIncome={addIncome} deleteIncome={deleteIncome}
         updateIncome={updateIncome} markIncome={markIncome} unmarkIncome={unmarkIncome} />
     </div>
   );
 }
+
+function LoanProgress({ bill, paymentsMade }) {
+  const start = bill.loanBalance;
+  const apr = bill.loanApr || 0;
+  const left = loanRemaining(start, apr, bill.amount, paymentsMade);
+  const cleared = start - left;
+  const ratio = start > 0 ? cleared / start : 0;
+  const toGo = loanPaymentsLeft(left, apr, bill.amount);
+  const stuck = !Number.isFinite(toGo);
+  const payoff = stuck || toGo === 0 ? null : monthLabel(shiftMonth(monthKeyToday(), toGo - 1));
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 7 }}>
+        <span style={{ fontWeight: 600, fontSize: 14, flex: 1, minWidth: 120 }}>{bill.name}</span>
+        <span style={{ fontSize: 13, color: T.mute, fontVariantNumeric: "tabular-nums" }}>
+          {fmt(left)} left of {fmt(start)}
+        </span>
+      </div>
+      <ProgressBar ratio={ratio} over={false} />
+      <div style={{ fontSize: 12.5, color: T.mute, marginTop: 7 }}>
+        {left <= 0 ? (
+          <span style={{ color: T.pos, fontWeight: 600 }}>Paid off ✓</span>
+        ) : stuck ? (
+          <span style={{ color: T.neg }}>
+            {fmt(bill.amount)} a month does not cover the interest at {apr}% — the balance is growing.
+          </span>
+        ) : (
+          <>
+            {Math.round(ratio * 100)}% paid off · {toGo} payment{toGo === 1 ? "" : "s"} to go
+            {payoff && <> · clear by {payoff}</>}
+            {apr > 0 && <> · {apr}% APR</>}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const monthKeyToday = () => todayStr().slice(0, 7);
 
 // Shared inline editor for bills (dueDay) and expected income (payDay)
 function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel, showAutoPay }) {
@@ -170,13 +266,20 @@ function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel, s
   const [category, setCategory] = useState(item.category);
   const [day, setDay] = useState(String(item[dayField]));
   const [autoPay, setAutoPay] = useState(Boolean(item.autoPay));
+  const [bal, setBal] = useState(item.loanBalance ? String(item.loanBalance) : "");
+  const [apr, setApr] = useState(item.loanApr ? String(item.loanApr) : "");
 
   const save = () => {
     const amt = parseFloat(amount);
     const d = parseInt(day, 10);
     if (!name.trim() || !amt || amt <= 0 || !d || d < 1 || d > 31) return;
     const patch = { name: name.trim(), amount: amt, category, [dayField]: d };
-    if (showAutoPay) patch.autoPay = autoPay;
+    if (showAutoPay) {
+      patch.autoPay = autoPay;
+      const b = parseFloat(bal);
+      patch.loanBalance = b > 0 ? b : undefined;
+      patch.loanApr = b > 0 ? (parseFloat(apr) || 0) : undefined;
+    }
     onSave(patch);
   };
 
@@ -202,6 +305,16 @@ function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel, s
             style={{ accentColor: "var(--accent)" }} />
           auto-pay
         </label>
+      )}
+      {showAutoPay && (
+        <>
+          <input type="number" min="0" step="0.01" value={bal} placeholder="Owed"
+            title="Balance still owed — leave blank if this is not a loan"
+            onChange={(e) => setBal(e.target.value)} style={{ ...inputStyle, width: 100 }} />
+          <input type="number" min="0" step="0.01" value={apr} placeholder="APR %"
+            title="Interest rate"
+            onChange={(e) => setApr(e.target.value)} style={{ ...inputStyle, width: 80 }} />
+        </>
       )}
       <button onClick={save} style={{ ...btn(T.pos), padding: "8px 14px" }}>Save</button>
       <button onClick={onCancel} style={{ ...btn("transparent", T.mute), padding: "8px 10px" }}>Cancel</button>
