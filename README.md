@@ -12,10 +12,19 @@ there is no account.
 
 1. Install [Node.js](https://nodejs.org) — download the **LTS** installer and
    accept the defaults. You only do this once.
-2. Double-click **`Install-CASH.bat`**.
+2. Download this project (green **Code** button → **Download ZIP**) and extract
+   it anywhere — Downloads is fine.
+3. Double-click **`Install-CASH.bat`**.
 
-That downloads what the app needs, builds it, and puts a CASH icon on your
-desktop. It only has to be run once.
+It doesn't matter where you extracted it. The installer **copies CASH to
+`C:\CASH`**, builds it there, and puts an icon on your desktop. Once it
+finishes you can delete the folder you downloaded.
+
+To install somewhere else, pass a path:
+
+```
+Install-CASH.bat D:\Apps\CASH
+```
 
 | Double-click | What it does |
 | --- | --- |
