@@ -20,13 +20,16 @@ desktop. It only has to be run once.
 | Double-click | What it does |
 | --- | --- |
 | `Install-CASH.bat` | First-time setup. Run once. |
-| `Start-CASH.bat` | Runs CASH. Same as the desktop icon. |
+| **desktop icon** / `CASH.vbs` | Starts CASH silently — no window. |
+| `Stop-CASH.bat` | Shuts CASH down. |
 | `Update-CASH.bat` | Fetches the newest version and rebuilds. |
+| `Start-CASH.bat` | Same as the icon, but shows a window. Useful if something breaks. |
 | `Create-Shortcut.bat` | Re-creates the desktop icon if you move the folder. |
 
-When CASH starts, a black window opens and your browser goes to
-<http://localhost:4173>. **Leave that window open while you use CASH** — closing
-it stops the app. Your data is not affected either way.
+Using the desktop icon, CASH starts in the background with no console window and
+your browser opens at <http://localhost:4173>. It keeps running until you run
+`Stop-CASH.bat`, sign out, or restart — closing the browser tab does not stop it,
+so you can come back to the tab any time.
 
 CASH always uses **port 4173** deliberately. Browsers store data per web
 address, so running it on a different port would show an empty ledger. If the

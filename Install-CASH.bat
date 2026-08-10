@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$sh = New-Object -ComObject WScript.Shell;" ^
   "$lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'CASH.lnk';" ^
   "$s = $sh.CreateShortcut($lnk);" ^
-  "$s.TargetPath = (Join-Path $here 'Start-CASH.bat');" ^
+  "$s.TargetPath = (Join-Path $here 'CASH.vbs');" ^
   "$s.WorkingDirectory = $here;" ^
   "$s.IconLocation = ((Join-Path $here 'cash.ico') + ',0');" ^
   "$s.Description = 'CASH - Count All Spending Habits';" ^
@@ -60,8 +60,9 @@ for /f "usebackq delims=" %%v in (`node -p "require('./package.json').version" 2
 echo ===============================================
 echo   Setup complete - CASH v%CASHVER%
 echo.
-echo   From now on, start CASH with the desktop icon
-echo   or by double-clicking Start-CASH.bat.
+echo   From now on, just use the CASH icon on your
+echo   desktop. It starts silently - no window.
+echo   Run Stop-CASH.bat when you want to shut it down.
 echo.
 echo   Your ledger is saved in your browser on this
 echo   PC. It is not uploaded anywhere, and updating
@@ -71,7 +72,7 @@ echo.
 
 choice /c YN /n /m "Start CASH now? [Y/N] "
 if errorlevel 2 goto bye
-start "" "%~dp0Start-CASH.bat"
+start "" "%~dp0CASH.vbs"
 goto bye
 
 :failed

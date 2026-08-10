@@ -7,6 +7,12 @@ CASH — Count All Spending Habits. Personal budgeting / ledger application.
 Stack: React 18 + Vite, Recharts for charts. Client-only SPA — data persists
 in `localStorage` under the key `budget-book-v1`; there is no backend.
 
+- Launchers: `CASH.vbs` (what the desktop shortcut targets) runs
+  `Start-CASH.bat` with a hidden window; `Start-CASH.bat` only serves the
+  existing `dist/`, so it starts instantly and needs no interaction. Building
+  belongs to `Install-CASH.bat` / `Update-CASH.bat`. `Stop-CASH.bat` kills
+  whatever is listening on 4173. Never use `timeout` in these scripts — it
+  fails under redirected input; use `ping -n`.
 - Version: `package.json` `version` is the single source of truth. Vite injects
   it as `__APP_VERSION__`; read it via `src/version.js`. It shows in the page
   footer, the Backup & data panel, the launcher banner, and is stamped into

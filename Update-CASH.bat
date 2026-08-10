@@ -79,7 +79,7 @@ echo ===============================================
 echo.
 choice /c YN /n /m "Start CASH now? [Y/N] "
 if errorlevel 2 goto bye
-start "" "%~dp0Start-CASH.bat"
+start "" "%~dp0CASH.vbs"
 goto bye
 
 :nogit

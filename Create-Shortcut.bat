@@ -8,7 +8,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$sh = New-Object -ComObject WScript.Shell;" ^
   "$lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'CASH.lnk';" ^
   "$s = $sh.CreateShortcut($lnk);" ^
-  "$s.TargetPath = (Join-Path $here 'Start-CASH.bat');" ^
+  "$s.TargetPath = (Join-Path $here 'CASH.vbs');" ^
   "$s.WorkingDirectory = $here;" ^
   "$s.IconLocation = ((Join-Path $here 'cash.ico') + ',0');" ^
   "$s.Description = 'CASH - Count All Spending Habits';" ^
