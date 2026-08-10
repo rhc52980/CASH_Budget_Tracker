@@ -56,7 +56,9 @@ Pages via Actions. See `CLAUDE.md` for architecture notes.
   guessed from merchant names, and likely duplicates flagged before anything is saved
 - **Year view** — annual totals, net by month, category breakdown, and year notes
 - **Custom categories** — add your own expense categories with a color of your choice
-- **Dark mode** — toggled from the header and remembered
+- **Appearance** — Light, Dark, Midnight (true black for OLED), High contrast, or
+  Follow system, plus five accent colours; each theme has its own chart palette
+  validated for colourblind separation against that background
 - **Mobile-first on phones** — bottom tab bar and a floating add button under 640px
 - **Backup nudges** — a gentle reminder when your last export is more than 30 days old
 - **Installable PWA** — add it to your phone or desktop; works offline (production build)

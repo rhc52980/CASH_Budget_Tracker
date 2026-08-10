@@ -17,7 +17,13 @@ in `localStorage` under the key `budget-book-v1`; there is no backend.
   Tabs live in `src/*Tab.jsx`; shared pieces in `ui.jsx`, `theme.js` (CSS-var
   tokens; charts use concrete per-theme colors from `CHART`), `constants.js`,
   `utils.js` (pure helpers incl. rollover math), `csv.js` (bank import).
-- Theming: light/dark via `data-theme` on `<html>`; tokens are CSS variables
+- Theming: `data-theme` on `<html>` is one of light/dark/midnight/contrast;
+  the stored preference may also be `auto`, resolved from `prefers-color-scheme`
+  and kept live via a media-query listener. Accent is applied separately as an
+  inline custom property (`applyAccent` in theme.js) so themes and accents
+  compose without a CSS block per combination. `--pos`/`--neg` are semantic and
+  must never follow the accent. Accent/ink pairs are chosen to clear WCAG AA.
+- Tokens are CSS variables
   in `index.css`, surfaced as `T.*` in theme.js. Visual language is flat and
   modern: one accent (emerald), Inter only, hairline borders, 16px radii,
   tight tracking on large numerals. No display serif, textures, or gradients.

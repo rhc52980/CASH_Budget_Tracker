@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { T, CHART } from "./theme.js";
+import { T, CHART, DARK_THEMES, applyAccent } from "./theme.js";
+import { AppearanceMenu } from "./AppearanceMenu.jsx";
 import { AppCtx } from "./ctx.js";
 import { EXPENSE_CATS, INCOME_CATS } from "./constants.js";
 import {
@@ -21,10 +22,13 @@ import { YearTab } from "./YearTab.jsx";
 import { CsvImportModal } from "./CsvImportModal.jsx";
 import { BackupPanel } from "./BackupPanel.jsx";
 
-const initialDark = () => {
+const VALID_THEMES = ["auto", "light", "dark", "midnight", "contrast"];
+const systemPrefersDark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+const initialThemePref = () => {
   const saved = localStorage.getItem("cash-theme");
-  if (saved) return saved === "dark";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  // "dark"/"light" also happen to be valid new values, so older prefs carry over
+  return VALID_THEMES.includes(saved) ? saved : "auto";
 };
 
 export default function BudgetBook() {
@@ -36,8 +40,14 @@ export default function BudgetBook() {
   const [trendRange, setTrendRange] = useState(6);
   const [trendKind, setTrendKind] = useState("flow");
   const [csvPreview, setCsvPreview] = useState(null);
-  const [dark, setDark] = useState(initialDark);
+  const [themePref, setThemePref] = useState(initialThemePref);
+  const [accent, setAccent] = useState(() => localStorage.getItem("cash-accent") || "emerald");
+  const [sysDark, setSysDark] = useState(systemPrefersDark);
+  const [showAppearance, setShowAppearance] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 640px)").matches);
+
+  const resolvedTheme = themePref === "auto" ? (sysDark ? "dark" : "light") : themePref;
+  const dark = DARK_THEMES.has(resolvedTheme);
   const [updateReady, setUpdateReady] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [loadProblem, setLoadProblem] = useState(null);
@@ -51,9 +61,25 @@ export default function BudgetBook() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = dark ? "dark" : "light";
-    localStorage.setItem("cash-theme", dark ? "dark" : "light");
-  }, [dark]);
+    document.documentElement.dataset.theme = resolvedTheme;
+    applyAccent(document.documentElement, accent, resolvedTheme);
+    localStorage.setItem("cash-theme", themePref);
+    localStorage.setItem("cash-accent", accent);
+    // Match the phone's browser/status bar to the page
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.content = getComputedStyle(document.documentElement)
+        .getPropertyValue("--bg").trim() || "#f6f7f9";
+    }
+  }, [resolvedTheme, themePref, accent]);
+
+  // Keep following the OS while the preference is "auto"
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (e) => setSysDark(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 640px)");
@@ -84,7 +110,7 @@ export default function BudgetBook() {
     setSaveError(res.ok ? null : res.error);
   }, [data, loaded, loadProblem]);
 
-  const chart = CHART[dark ? "dark" : "light"];
+  const chart = CHART[resolvedTheme] || CHART.light;
   const customMap = useMemo(() => new Map(data.customCats.map((c) => [c.name, c.color])), [data.customCats]);
   const expenseCats = useMemo(() => [...EXPENSE_CATS, ...data.customCats.map((c) => c.name)], [data.customCats]);
   const allCats = useMemo(() => [...expenseCats, ...INCOME_CATS], [expenseCats]);
@@ -393,9 +419,23 @@ export default function BudgetBook() {
               style={{ ...iconBtn, width: 28, height: 28, border: "none", background: "transparent" }}>›</button>
           </div>
 
-          <button onClick={() => setDark((v) => !v)}
-            aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-            style={iconBtn}>{dark ? "☀" : "☾"}</button>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setShowAppearance((v) => !v)}
+              aria-label="Appearance settings" aria-expanded={showAppearance}
+              title="Appearance"
+              style={{
+                ...iconBtn,
+                background: showAppearance ? T.cardTint : "transparent",
+                color: showAppearance ? T.ink : T.mute,
+              }}>{dark ? "☾" : "☀"}</button>
+            {showAppearance && (
+              <AppearanceMenu
+                themePref={themePref} setThemePref={setThemePref}
+                accent={accent} setAccent={setAccent}
+                resolved={resolvedTheme}
+                onClose={() => setShowAppearance(false)} />
+            )}
+          </div>
         </div>
       </header>
 

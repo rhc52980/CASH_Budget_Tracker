@@ -1,20 +1,25 @@
-:root {
+/* Accent variables (--accent, --accent-ink, --accent-soft) are written onto
+   the root element from theme.js, so themes and accents compose without a
+   block per combination. --pos / --neg stay semantic and never follow the
+   accent: income is green whatever colour the buttons are. */
+:root,
+[data-theme="light"] {
   --bg: #f6f7f9;
   --card: #ffffff;
   --card-2: #fafbfc;
   --border: #e8eaee;
   --text: #0e1116;
   --muted: #6c7480;
-  --accent: #0e9e6e;
+  --accent: #0a7d57;
   --accent-ink: #ffffff;
-  --accent-soft: #e7f5ef;
-  --pos: #0e9e6e;
-  --neg: #cf4a3c;
+  --accent-soft: #e4f3ec;
+  --pos: #0a7d57;
+  --neg: #c0392c;
   --track: #edeff2;
   --input-bg: #ffffff;
   --shadow: 0 1px 2px rgba(14, 17, 22, 0.04), 0 8px 24px -12px rgba(14, 17, 22, 0.1);
   --overlay: rgba(14, 17, 22, 0.45);
-  --ring: rgba(14, 158, 110, 0.22);
+  --ring: rgba(10, 125, 87, 0.22);
   color-scheme: light;
 }
 
@@ -36,6 +41,60 @@
   --overlay: rgba(0, 0, 0, 0.6);
   --ring: rgba(52, 211, 154, 0.25);
   color-scheme: dark;
+}
+
+/* True black: pixels are switched off on OLED, so panels read as edges
+   rather than as lighter rectangles. */
+[data-theme="midnight"] {
+  --bg: #000000;
+  --card: #0d0d0d;
+  --card-2: #141414;
+  --border: #22262a;
+  --text: #f4f6f8;
+  --muted: #96a0ab;
+  --accent: #34d39a;
+  --accent-ink: #08110d;
+  --accent-soft: #12251f;
+  --pos: #34d39a;
+  --neg: #e0705f;
+  --track: #1a1a1a;
+  --input-bg: #0a0a0a;
+  --shadow: none;
+  --overlay: rgba(0, 0, 0, 0.75);
+  --ring: rgba(52, 211, 154, 0.3);
+  color-scheme: dark;
+}
+
+/* Maximum legibility: black text, visible borders, no soft greys. */
+[data-theme="contrast"] {
+  --bg: #ffffff;
+  --card: #ffffff;
+  --card-2: #f2f2f2;
+  --border: #8c939b;
+  --text: #000000;
+  --muted: #3f464e;
+  /* Matches the default emerald that theme.js writes on first paint */
+  --accent: #0a7d57;
+  --accent-ink: #ffffff;
+  --accent-soft: #e4f3ec;
+  --pos: #0c6539;
+  --neg: #a1271b;
+  --track: #d8dade;
+  --input-bg: #ffffff;
+  --shadow: none;
+  --overlay: rgba(0, 0, 0, 0.5);
+  --ring: rgba(0, 0, 0, 0.35);
+  color-scheme: light;
+}
+
+[data-theme="contrast"] button,
+[data-theme="contrast"] input,
+[data-theme="contrast"] select {
+  border-color: var(--border);
+}
+[data-theme="contrast"] :focus-visible {
+  outline: 3px solid var(--text);
+  outline-offset: 2px;
 }
 
 html,
