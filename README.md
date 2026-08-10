@@ -12,19 +12,29 @@ there is no account.
 
 1. Install [Node.js](https://nodejs.org) — download the **LTS** installer and
    accept the defaults. You only do this once.
-2. Double-click **`Start-CASH.bat`**.
+2. Double-click **`Install-CASH.bat`**.
 
-The first run takes a couple of minutes while it downloads what it needs; after
-that it starts in a few seconds. A black window opens and your browser goes to
+That downloads what the app needs, builds it, and puts a CASH icon on your
+desktop. It only has to be run once.
+
+| Double-click | What it does |
+| --- | --- |
+| `Install-CASH.bat` | First-time setup. Run once. |
+| `Start-CASH.bat` | Runs CASH. Same as the desktop icon. |
+| `Update-CASH.bat` | Fetches the newest version and rebuilds. |
+| `Create-Shortcut.bat` | Re-creates the desktop icon if you move the folder. |
+
+When CASH starts, a black window opens and your browser goes to
 <http://localhost:4173>. **Leave that window open while you use CASH** — closing
 it stops the app. Your data is not affected either way.
-
-`Create-Shortcut.bat` puts a CASH icon on your desktop so you can launch it
-without opening this folder.
 
 CASH always uses **port 4173** deliberately. Browsers store data per web
 address, so running it on a different port would show an empty ledger. If the
 port is busy the launcher stops with an explanation rather than quietly moving.
+
+Updating never touches your ledger: it lives in your browser, not in these
+files. After an update the app may offer a **Refresh** button — click it to load
+the new version.
 
 ### Install it as a desktop app
 

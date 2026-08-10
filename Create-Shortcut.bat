@@ -4,15 +4,15 @@ setlocal
 cd /d "%~dp0"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$here = $PWD.Path;" ^
   "$sh = New-Object -ComObject WScript.Shell;" ^
   "$lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'CASH.lnk';" ^
   "$s = $sh.CreateShortcut($lnk);" ^
-  "$s.TargetPath = Join-Path $PWD 'Start-CASH.bat';" ^
-  "$s.WorkingDirectory = $PWD;" ^
-  "$s.IconLocation = (Join-Path $PWD 'cash.ico') + ',0';" ^
+  "$s.TargetPath = (Join-Path $here 'Start-CASH.bat');" ^
+  "$s.WorkingDirectory = $here;" ^
+  "$s.IconLocation = ((Join-Path $here 'cash.ico') + ',0');" ^
   "$s.Description = 'CASH - Count All Spending Habits';" ^
-  "$s.WindowStyle = 7;" ^
-  "$s.Save();" ^
+  "$s.WindowStyle = 7; $s.Save();" ^
   "Write-Host ('Shortcut created: ' + $lnk)"
 
 echo.
