@@ -21,6 +21,7 @@ import { Transactions } from "./TransactionsTab.jsx";
 import { YearTab } from "./YearTab.jsx";
 import { CsvImportModal } from "./CsvImportModal.jsx";
 import { BackupPanel } from "./BackupPanel.jsx";
+import logoUrl from "./assets/logo.png";
 
 const VALID_THEMES = ["auto", "light", "dark", "midnight", "contrast"];
 const systemPrefersDark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -393,12 +394,9 @@ export default function BudgetBook() {
           maxWidth: 1000, margin: "0 auto", height: 60,
           display: "flex", alignItems: "center", gap: 12,
         }}>
-          <div aria-hidden style={{
-            width: 28, height: 28, borderRadius: 9, flexShrink: 0,
-            background: T.brass, color: T.goldInk,
-            display: "grid", placeItems: "center",
-            fontSize: 17, fontWeight: 700, lineHeight: 1,
-          }}>¢</div>
+          <img src={logoUrl} alt="" width="30" height="30" style={{
+            width: 30, height: 30, borderRadius: 8, flexShrink: 0, display: "block",
+          }} />
           <span style={{ fontSize: 16, fontWeight: 650, letterSpacing: "-0.02em" }}>CASH</span>
 
           <div style={{ flex: 1 }} />
