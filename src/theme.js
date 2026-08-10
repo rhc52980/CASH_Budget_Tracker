@@ -33,6 +33,11 @@ export const DARK_THEMES = new Set(["dark", "midnight"]);
  * Light column: white text. Dark column: near-black text.
  */
 export const ACCENTS = [
+  // Sampled from the logo: the dark step keeps the ring's yellow-green hue,
+  // the light step is that hue darkened until white text clears AA.
+  { id: "goat", label: "Goat green",
+    light: { accent: "#4A7A1E", ink: "#FFFFFF", soft: "#EDF4E2" },
+    dark: { accent: "#7DB342", ink: "#08110D", soft: "#1E2A14" } },
   { id: "emerald", label: "Emerald",
     light: { accent: "#0A7D57", ink: "#FFFFFF", soft: "#E4F3EC" },
     dark: { accent: "#34D39A", ink: "#08110D", soft: "#16302A" } },
