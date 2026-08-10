@@ -1,7 +1,16 @@
-const CACHE = "cash-v1";
+// CACHE and PRECACHE are rewritten at build time (see vite.config.js) so each
+// deploy gets a fresh cache and the app shell is available offline on the very
+// first visit rather than the second.
+const CACHE = "cash-__BUILD__";
+const PRECACHE = __PRECACHE__;
 
-self.addEventListener("install", () => {
-  self.skipWaiting();
+self.addEventListener("install", (e) => {
+  e.waitUntil(
+    caches.open(CACHE)
+      // Individually, so one failed asset can't abandon the whole precache
+      .then((c) => Promise.allSettled(PRECACHE.map((url) => c.add(url))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (e) => {
@@ -26,7 +35,7 @@ self.addEventListener("fetch", (e) => {
           caches.open(CACHE).then((c) => c.put(self.registration.scope, copy));
           return res;
         })
-        .catch(() => caches.match(self.registration.scope))
+        .catch(() => caches.match(self.registration.scope).then((hit) => hit || caches.match("./index.html")))
     );
     return;
   }
