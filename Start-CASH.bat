@@ -44,8 +44,29 @@ echo   Close it when you are finished.
 echo -----------------------------------------------
 echo.
 
-call npm run preview -- --port 4173 --open
+REM --strictPort matters: your data is stored per web address, so if CASH ever
+REM started on a different port it would look empty. Better to fail loudly.
+call npm run preview -- --port 4173 --strictPort --open
+if errorlevel 1 goto portbusy
 goto end
+
+:portbusy
+echo.
+echo -----------------------------------------------
+echo   Could not start on port 4173.
+echo.
+echo   Something else on this PC is already using it -
+echo   most likely another copy of CASH that is still
+echo   running. Close the other window and try again.
+echo.
+echo   CASH always uses port 4173 on purpose: your
+echo   ledger is saved against that exact address, so
+echo   starting elsewhere would look like your data
+echo   had vanished. It has not.
+echo -----------------------------------------------
+echo.
+pause
+exit /b 1
 
 :failed
 echo.

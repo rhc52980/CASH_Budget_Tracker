@@ -5,6 +5,9 @@ monthly bills, set per-category budgets, and fund savings goals.
 
 Your data stays in your browser — no account, no server, nothing uploaded.
 
+CASH runs on your own machine. Nothing is hosted, nothing is uploaded, and
+there is no account.
+
 ## Getting started on Windows
 
 1. Install [Node.js](https://nodejs.org) — download the **LTS** installer and
@@ -15,6 +18,13 @@ The first run takes a couple of minutes while it downloads what it needs; after
 that it starts in a few seconds. A black window opens and your browser goes to
 <http://localhost:4173>. **Leave that window open while you use CASH** — closing
 it stops the app. Your data is not affected either way.
+
+`Create-Shortcut.bat` puts a CASH icon on your desktop so you can launch it
+without opening this folder.
+
+CASH always uses **port 4173** deliberately. Browsers store data per web
+address, so running it on a different port would show an empty ledger. If the
+port is busy the launcher stops with an explanation rather than quietly moving.
 
 ### Install it as a desktop app
 
