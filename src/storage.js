@@ -11,7 +11,7 @@ const MIN_SNAPSHOT_GAP_MS = 6 * 60 * 60 * 1000; // 6 hours
 export const DEFAULTS = {
   version: SCHEMA_VERSION,
   transactions: [], budgets: {}, goals: [], bills: [], billPaid: {},
-  incomes: [], incomePaid: {}, budgetRollover: {}, customCats: [],
+  incomes: [], incomePaid: {}, budgetRollover: {}, customCats: [], accounts: [],
   // month -> billId -> true. Records that the user undid an auto-pay for that
   // month, so it is not immediately re-applied.
   autoPaySkip: {},

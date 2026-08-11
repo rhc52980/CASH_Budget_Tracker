@@ -18,7 +18,11 @@ export function Transactions({ monthTx, deleteTx, updateTx }) {
     return true;
   });
   const filtering = q !== "" || ftype !== "all" || fcat !== "all";
-  const net = list.reduce((s, t) => s + (t.type === "income" ? t.amount : -t.amount), 0);
+  // Transfers move money between your own accounts, so they net to nothing
+  const net = list.reduce(
+    (s, t) => (t.type === "transfer" ? s : s + (t.type === "income" ? t.amount : -t.amount)),
+    0
+  );
 
   return (
     <Card style={{ marginTop: 14 }}>
@@ -34,6 +38,7 @@ export function Transactions({ monthTx, deleteTx, updateTx }) {
           <option value="all">All types</option>
           <option value="expense">Expenses</option>
           <option value="income">Income</option>
+          <option value="transfer">Transfers</option>
         </select>
         <select value={fcat} onChange={(e) => setFcat(e.target.value)} style={{ ...inputStyle, width: 160 }}>
           <option value="all">All categories</option>
@@ -50,8 +55,9 @@ export function Transactions({ monthTx, deleteTx, updateTx }) {
 }
 
 export function TxList({ list, onDelete, onEdit }) {
-  const { catColor } = useApp();
+  const { catColor, accounts } = useApp();
   const [editingId, setEditingId] = useState(null);
+  const accName = (id) => accounts.find((a) => a.id === id)?.name;
   return (
     <div>
       {list.map((t, i) => (
@@ -66,22 +72,30 @@ export function TxList({ list, onDelete, onEdit }) {
         }}>
           <span style={{
             width: 10, height: 10, borderRadius: 3, flexShrink: 0,
-            background: t.type === "income" ? T.pos : catColor(t.category),
+            background: t.type === "transfer" ? T.mute : t.type === "income" ? T.pos : catColor(t.category),
           }} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 600 }}>{t.category}</div>
-            {t.note && <div style={{ fontSize: 12, color: T.mute, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.note}</div>}
+            <div style={{ fontWeight: 600 }}>
+              {t.type === "transfer"
+                ? `${accName(t.accountId) || "?"} → ${accName(t.toAccountId) || "?"}`
+                : t.category}
+            </div>
+            {(t.note || (t.type !== "transfer" && accName(t.accountId))) && (
+              <div style={{ fontSize: 12, color: T.mute, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {[t.note, t.type !== "transfer" ? accName(t.accountId) : null].filter(Boolean).join(" · ")}
+              </div>
+            )}
           </div>
           <span style={{ fontSize: 12, color: T.mute, fontVariantNumeric: "tabular-nums" }}>
             {new Date(t.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
           </span>
           <span style={{
             fontVariantNumeric: "tabular-nums", fontWeight: 600, minWidth: 90, textAlign: "right",
-            color: t.type === "income" ? T.pos : T.ink,
+            color: t.type === "transfer" ? T.mute : t.type === "income" ? T.pos : T.ink,
           }}>
-            {t.type === "income" ? "+" : "−"}{fmt(t.amount)}
+            {t.type === "transfer" ? "" : t.type === "income" ? "+" : "−"}{fmt(t.amount)}
           </span>
-          {onEdit && (
+          {onEdit && t.type !== "transfer" && (
             <button onClick={() => setEditingId(t.id)} aria-label={`Edit ${t.category} entry`}
               style={{ ...btn("transparent", T.mute), padding: "4px 6px", fontSize: 14 }}>✎</button>
           )}

@@ -19,6 +19,7 @@ import { Budgets } from "./BudgetsTab.jsx";
 import { Goals } from "./GoalsTab.jsx";
 import { Transactions } from "./TransactionsTab.jsx";
 import { YearTab } from "./YearTab.jsx";
+import { AccountsTab } from "./AccountsTab.jsx";
 import { CsvImportModal } from "./CsvImportModal.jsx";
 import { BackupPanel } from "./BackupPanel.jsx";
 import logoUrl from "./assets/logo.png";
@@ -360,6 +361,17 @@ export default function BudgetBook() {
     };
   });
 
+  const addAccount = (a) => setData((d) => ({ ...d, accounts: [...d.accounts, a] }));
+  const updateAccount = (id, patch) => setData((d) => ({
+    ...d, accounts: d.accounts.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+  }));
+  // Removing an account keeps its transactions — deleting someone's spending
+  // history because they closed a bank account would be its own bug
+  const deleteAccount = (id) => setData((d) => ({
+    ...d, accounts: d.accounts.filter((a) => a.id !== id),
+  }));
+  const addTransfer = (t) => setData((d) => ({ ...d, transactions: [...d.transactions, t] }));
+
   const addCustomCat = (c) => setData((d) => ({ ...d, customCats: [...d.customCats, c] }));
   const deleteCustomCat = (name) => setData((d) => ({
     ...d, customCats: d.customCats.filter((c) => c.name !== name),
@@ -422,6 +434,7 @@ export default function BudgetBook() {
 
   const tabs = [
     ["overview", "Overview"],
+    ["accounts", "Accounts"],
     ["bills", "Bills"],
     ["budgets", "Budgets"],
     ["goals", "Goals"],
@@ -429,7 +442,7 @@ export default function BudgetBook() {
     ["year", "Year"],
   ];
 
-  const ctxValue = { dark, chart, expenseCats, allCats, catColor };
+  const ctxValue = { dark, chart, expenseCats, allCats, catColor, accounts: data.accounts };
   const iconBtn = {
     width: 32, height: 32, padding: 0, borderRadius: 8, cursor: "pointer",
     display: "grid", placeItems: "center", fontSize: 15,
@@ -561,6 +574,11 @@ export default function BudgetBook() {
             trendKind={trendKind} setTrendKind={setTrendKind}
             trendRange={trendRange} setTrendRange={setTrendRange}
             monthTx={monthTx} expenses={expenses} insights={insights} />
+        )}
+        {tab === "accounts" && (
+          <AccountsTab accounts={data.accounts} transactions={data.transactions}
+            addAccount={addAccount} updateAccount={updateAccount}
+            deleteAccount={deleteAccount} addTransfer={addTransfer} />
         )}
         {tab === "bills" && (
           <Bills bills={data.bills} month={month} paidMap={data.billPaid[month] || {}}

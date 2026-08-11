@@ -16,6 +16,15 @@ export const CUSTOM_CAT_COLORS = [
   "#B8722C", "#4E9E4E", "#A65B9E", "#75808A",
 ];
 
+// Liabilities carry a negative balance so net worth is a plain sum.
+export const ACCOUNT_TYPES = [
+  { id: "checking", label: "Checking", liability: false },
+  { id: "savings", label: "Savings", liability: false },
+  { id: "cash", label: "Cash", liability: false },
+  { id: "credit", label: "Credit card", liability: true },
+  { id: "loan", label: "Loan", liability: true },
+];
+
 // Common bills: [name, default category] — one click prefills the add-bill form
 export const BILL_PRESETS = [
   ["Rent", "Housing"], ["Mortgage", "Housing"],

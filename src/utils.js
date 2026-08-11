@@ -34,6 +34,33 @@ export const dueDateInMonth = (ym, dueDay) => {
 };
 
 /**
+ * Current balance of one account.
+ * Liabilities (credit cards) simply hold a negative balance, so net worth is
+ * the plain sum of every account and needs no special-casing.
+ * Transfers move value between accounts without being income or spending.
+ */
+export function accountBalance(accountId, startingBalance, transactions) {
+  let b = Number(startingBalance) || 0;
+  for (const t of transactions) {
+    if (t.type === "transfer") {
+      if (t.accountId === accountId) b -= t.amount;
+      if (t.toAccountId === accountId) b += t.amount;
+    } else if (t.accountId === accountId) {
+      b += t.type === "income" ? t.amount : -t.amount;
+    }
+  }
+  return b;
+}
+
+/** Everything owned minus everything owed. */
+export function netWorth(accounts, transactions) {
+  return accounts.reduce(
+    (sum, a) => sum + accountBalance(a.id, a.startingBalance, transactions),
+    0
+  );
+}
+
+/**
  * Balance left on an amortising loan after `paymentsMade` payments.
  * Each payment covers that month's interest first; only the remainder
  * reduces the balance. An APR of 0 makes it plain subtraction.

@@ -6,7 +6,8 @@ import { fmt, todayStr, uid } from "./utils.js";
 import { Card, btn, inputStyle } from "./ui.jsx";
 
 export function AddEntry({ onAdd }) {
-  const { expenseCats } = useApp();
+  const { expenseCats, accounts } = useApp();
+  const [accountId, setAccountId] = useState(accounts[0]?.id || "");
   const [type, setType] = useState("expense");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(expenseCats[1]);
@@ -23,12 +24,18 @@ export function AddEntry({ onAdd }) {
     if (splits) {
       const lines = splits.map((s) => ({ ...s, amt: parseFloat(s.amount) }));
       if (lines.some((s) => !s.amt || s.amt <= 0)) { setErr("Every split line needs an amount greater than zero."); return; }
-      onAdd(lines.map((s) => ({ id: uid(), type, amount: s.amt, category: s.category, date, note: note.trim() })));
+      onAdd(lines.map((s) => ({
+        id: uid(), type, amount: s.amt, category: s.category, date, note: note.trim(),
+        ...(accountId ? { accountId } : {}),
+      })));
       return;
     }
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) { setErr("Enter an amount greater than zero."); return; }
-    onAdd([{ id: uid(), type, amount: amt, category, date, note: note.trim() }]);
+    onAdd([{
+      id: uid(), type, amount: amt, category, date, note: note.trim(),
+      ...(accountId ? { accountId } : {}),
+    }]);
   };
 
   const switchType = (t) => {
@@ -117,6 +124,15 @@ export function AddEntry({ onAdd }) {
           <input value={note} placeholder="e.g. Farmers market" onChange={(e) => setNote(e.target.value)}
             style={{ ...inputStyle, marginTop: 4 }} />
         </label>
+        {accounts.length > 0 && (
+          <label style={{ fontSize: 12, color: T.mute }}>Account
+            <select value={accountId} onChange={(e) => setAccountId(e.target.value)}
+              style={{ ...inputStyle, marginTop: 4 }}>
+              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              <option value="">— none —</option>
+            </select>
+          </label>
+        )}
       </div>
       )}
       {err && <div style={{ color: T.neg, fontSize: 13, marginTop: 8 }}>{err}</div>}

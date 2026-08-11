@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   monthKey, monthDiff, shiftMonth, dueDateInMonth, ordinal, kFmt, computeCarry,
-  loanRemaining, loanPaymentsLeft,
+  loanRemaining, loanPaymentsLeft, accountBalance, netWorth,
 } from "./utils.js";
 
 describe("date helpers", () => {
@@ -45,6 +45,55 @@ describe("formatting", () => {
     expect(kFmt(1500)).toBe("$1.5k");
     expect(kFmt(-2200)).toBe("−$2.2k");
     expect(kFmt(0)).toBe("$0");
+  });
+});
+
+describe("account balances", () => {
+  const tx = [
+    { id: "a", type: "income", amount: 3000, accountId: "chk", date: "2026-08-01", category: "Salary" },
+    { id: "b", type: "expense", amount: 200, accountId: "chk", date: "2026-08-04", category: "Groceries" },
+    { id: "c", type: "expense", amount: 75, accountId: "card", date: "2026-08-05", category: "Dining" },
+    { id: "d", type: "transfer", amount: 500, accountId: "chk", toAccountId: "sav", date: "2026-08-06" },
+  ];
+
+  it("adds income and subtracts spending", () => {
+    expect(accountBalance("chk", 1000, tx)).toBe(1000 + 3000 - 200 - 500);
+  });
+
+  it("moves value on a transfer without inventing any", () => {
+    expect(accountBalance("sav", 0, tx)).toBe(500);
+    const before = 1000 + 0;
+    const after = accountBalance("chk", 1000, tx) + accountBalance("sav", 0, tx);
+    expect(after).toBe(before + 3000 - 200 - 500 + 500 - 0 + 0); // transfer nets out
+  });
+
+  it("ignores transactions belonging to other accounts", () => {
+    expect(accountBalance("card", 0, tx)).toBe(-75);
+  });
+
+  it("treats a credit card as a negative balance", () => {
+    // owing $450 to start, then a $75 purchase, then a $100 payment in
+    const cardTx = [
+      { id: "x", type: "expense", amount: 75, accountId: "card", date: "2026-08-05" },
+      { id: "y", type: "transfer", amount: 100, accountId: "chk", toAccountId: "card", date: "2026-08-09" },
+    ];
+    expect(accountBalance("card", -450, cardTx)).toBe(-425);
+  });
+
+  it("nets assets against liabilities for net worth", () => {
+    const accounts = [
+      { id: "chk", startingBalance: 1000 },
+      { id: "sav", startingBalance: 0 },
+      { id: "card", startingBalance: -450 },
+    ];
+    // 1000+3000-200-500 = 3300, savings 500, card -450-75 = -525
+    expect(netWorth(accounts, tx)).toBe(3300 + 500 - 525);
+  });
+
+  it("is zero for no accounts, and ignores unassigned transactions", () => {
+    expect(netWorth([], tx)).toBe(0);
+    const loose = [{ id: "z", type: "expense", amount: 50, date: "2026-08-02" }];
+    expect(accountBalance("chk", 100, loose)).toBe(100);
   });
 });
 
