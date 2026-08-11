@@ -395,6 +395,14 @@ export default function BudgetBook() {
     setData((d) => ({ ...d, accounts: d.accounts.filter((a) => a.id !== id) }));
   };
   const addTransfer = (t) => setData((d) => ({ ...d, transactions: [...d.transactions, t] }));
+  const toggleCleared = (txId) => setData((d) => ({
+    ...d,
+    transactions: d.transactions.map((t) => (t.id === txId ? { ...t, cleared: !t.cleared } : t)),
+  }));
+  const setReconciled = (accountId, when) => setData((d) => ({
+    ...d,
+    accounts: d.accounts.map((a) => (a.id === accountId ? { ...a, lastReconciled: when } : a)),
+  }));
 
   const addCustomCat = (c) => setData((d) => ({ ...d, customCats: [...d.customCats, c] }));
   const deleteCustomCat = (name) => {
@@ -604,7 +612,8 @@ export default function BudgetBook() {
         {tab === "accounts" && (
           <AccountsTab accounts={data.accounts} transactions={data.transactions}
             addAccount={addAccount} updateAccount={updateAccount}
-            deleteAccount={deleteAccount} addTransfer={addTransfer} />
+            deleteAccount={deleteAccount} addTransfer={addTransfer}
+            toggleCleared={toggleCleared} setReconciled={setReconciled} />
         )}
         {tab === "bills" && (
           <Bills bills={data.bills} month={month} paidMap={data.billPaid[month] || {}}

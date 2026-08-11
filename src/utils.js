@@ -52,6 +52,15 @@ export function accountBalance(accountId, startingBalance, transactions) {
   return b;
 }
 
+/**
+ * Balance counting only transactions you have ticked off against a statement.
+ * Reconciling means making this match what the bank says; anything left over
+ * is the discrepancy worth investigating.
+ */
+export function clearedBalance(accountId, startingBalance, transactions) {
+  return accountBalance(accountId, startingBalance, transactions.filter((t) => t.cleared));
+}
+
 /** Everything owned minus everything owed. */
 export function netWorth(accounts, transactions) {
   return accounts.reduce(

@@ -94,6 +94,9 @@ Pages via Actions. See `CLAUDE.md` for architecture notes.
 - **Accounts** — checking, savings, cash, credit cards and loans, each with a live
   balance, plus your net worth. Transfers move money between your own accounts
   without counting as income or spending.
+- **Reconcile** — press **Check** on an account, tick off what has appeared on your
+  statement and enter the bank's balance. The difference tells you whether anything
+  is missing or double-counted.
 - **Insights** — category spending vs your recent average, end-of-month pace
   projection, largest expense, and savings rate
 - **Goals** — savings goals you can fund incrementally

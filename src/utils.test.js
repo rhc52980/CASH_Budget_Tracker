@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   monthKey, monthDiff, shiftMonth, dueDateInMonth, ordinal, kFmt, computeCarry,
-  loanRemaining, loanPaymentsLeft, accountBalance, netWorth,
+  loanRemaining, loanPaymentsLeft, accountBalance, netWorth, clearedBalance,
 } from "./utils.js";
 
 describe("date helpers", () => {
@@ -94,6 +94,34 @@ describe("account balances", () => {
     expect(netWorth([], tx)).toBe(0);
     const loose = [{ id: "z", type: "expense", amount: 50, date: "2026-08-02" }];
     expect(accountBalance("chk", 100, loose)).toBe(100);
+  });
+});
+
+describe("reconciliation", () => {
+  const tx = [
+    { id: "a", type: "income", amount: 3000, accountId: "chk", cleared: true, date: "2026-08-01" },
+    { id: "b", type: "expense", amount: 200, accountId: "chk", cleared: true, date: "2026-08-04" },
+    { id: "c", type: "expense", amount: 45, accountId: "chk", date: "2026-08-09" }, // not yet cleared
+  ];
+
+  it("counts only what has been ticked off", () => {
+    expect(clearedBalance("chk", 1000, tx)).toBe(1000 + 3000 - 200);
+    expect(accountBalance("chk", 1000, tx)).toBe(1000 + 3000 - 200 - 45);
+  });
+
+  it("equals the full balance once everything is cleared", () => {
+    const all = tx.map((t) => ({ ...t, cleared: true }));
+    expect(clearedBalance("chk", 1000, all)).toBe(accountBalance("chk", 1000, all));
+  });
+
+  it("is just the opening balance when nothing is cleared", () => {
+    const none = tx.map((t) => ({ ...t, cleared: false }));
+    expect(clearedBalance("chk", 1000, none)).toBe(1000);
+  });
+
+  it("exposes the gap against a statement balance", () => {
+    // bank says 3800, we have cleared 3800 -> reconciled
+    expect(3800 - clearedBalance("chk", 1000, tx)).toBe(0);
   });
 });
 

@@ -1,17 +1,19 @@
 import { useMemo, useState } from "react";
 import { T } from "./theme.js";
 import { ACCOUNT_TYPES } from "./constants.js";
-import { fmt, uid, todayStr, accountBalance, netWorth } from "./utils.js";
+import { fmt, uid, todayStr, accountBalance, netWorth, clearedBalance } from "./utils.js";
 import { Card, SectionTitle, Empty, btn, ghostBtn, inputStyle, numeral } from "./ui.jsx";
 
 const typeOf = (id) => ACCOUNT_TYPES.find((t) => t.id === id) || ACCOUNT_TYPES[0];
 
 export function AccountsTab({
   accounts, transactions, addAccount, updateAccount, deleteAccount, addTransfer,
+  toggleCleared, setReconciled,
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState(null);
   const [showTransfer, setShowTransfer] = useState(false);
+  const [reconcileId, setReconcileId] = useState(null);
 
   const balances = useMemo(() => {
     const m = {};
@@ -88,8 +90,18 @@ export function AccountsTab({
                       onSave={(patch) => { updateAccount(a.id, patch); setEditId(null); }}
                       onCancel={() => setEditId(null)} />
                   ) : (
-                    <AccountRow key={a.id} account={a} balance={balances[a.id]} topBorder={i > 0}
-                      onEdit={() => setEditId(a.id)} onDelete={() => deleteAccount(a.id)} />
+                    <div key={a.id}>
+                      <AccountRow account={a} balance={balances[a.id]} topBorder={i > 0}
+                        onEdit={() => setEditId(a.id)} onDelete={() => deleteAccount(a.id)}
+                        reconciling={reconcileId === a.id}
+                        onReconcile={() => setReconcileId(reconcileId === a.id ? null : a.id)} />
+                      {reconcileId === a.id && (
+                        <Reconcile account={a} transactions={transactions}
+                          toggleCleared={toggleCleared}
+                          onFinish={() => { setReconciled(a.id, todayStr()); setReconcileId(null); }}
+                          onClose={() => setReconcileId(null)} />
+                      )}
+                    </div>
                   )
                 ))}
               </Card>
@@ -109,7 +121,7 @@ export function AccountsTab({
   );
 }
 
-function AccountRow({ account, balance, topBorder, onEdit, onDelete }) {
+function AccountRow({ account, balance, topBorder, onEdit, onDelete, onReconcile, reconciling }) {
   const t = typeOf(account.type);
   const shown = t.liability ? Math.abs(balance) : balance;
   return (
@@ -119,7 +131,10 @@ function AccountRow({ account, balance, topBorder, onEdit, onDelete }) {
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600 }}>{account.name}</div>
-        <div style={{ fontSize: 12, color: T.mute }}>{t.label}</div>
+        <div style={{ fontSize: 12, color: T.mute }}>
+          {t.label}
+          {account.lastReconciled && ` · checked ${account.lastReconciled}`}
+        </div>
       </div>
       <span style={{
         ...numeral(16), minWidth: 90, textAlign: "right",
@@ -127,6 +142,11 @@ function AccountRow({ account, balance, topBorder, onEdit, onDelete }) {
       }}>
         {(!t.liability && balance < 0 ? "−" : "") + fmt(Math.abs(shown))}
       </span>
+      <button onClick={onReconcile}
+        title="Check this account against your bank statement"
+        style={{ ...ghostBtn, padding: "6px 11px", fontSize: 12.5, color: reconciling ? T.ink : T.mute }}>
+        {reconciling ? "Close" : "Check"}
+      </button>
       <button onClick={onEdit} aria-label={`Edit ${account.name}`}
         style={{ ...btn("transparent", T.mute), padding: "4px 6px", fontSize: 14 }}>✎</button>
       <button
@@ -137,6 +157,110 @@ function AccountRow({ account, balance, topBorder, onEdit, onDelete }) {
         }}
         aria-label={`Delete ${account.name}`}
         style={{ ...btn("transparent", T.mute), padding: "4px 8px", fontSize: 16 }}>×</button>
+    </div>
+  );
+}
+
+function Reconcile({ account, transactions, toggleCleared, onFinish, onClose }) {
+  const [statement, setStatement] = useState("");
+  const liability = typeOf(account.type).liability;
+
+  // Everything touching this account, newest first
+  const rows = useMemo(() => transactions
+    .filter((t) => t.accountId === account.id || t.toAccountId === account.id)
+    .sort((a, b) => b.date.localeCompare(a.date)),
+    [transactions, account.id]);
+
+  const cleared = clearedBalance(account.id, account.startingBalance, transactions);
+  const typed = statement.trim() === "" ? null : parseFloat(statement);
+  const target = typed === null || isNaN(typed) ? null : (liability ? -Math.abs(typed) : typed);
+  const diff = target === null ? null : target - cleared;
+  const balanced = diff !== null && Math.abs(diff) < 0.005;
+
+  const signFor = (t) => {
+    if (t.type === "transfer") return t.toAccountId === account.id ? 1 : -1;
+    return t.type === "income" ? 1 : -1;
+  };
+
+  return (
+    <div style={{
+      padding: "14px 12px", margin: "0 0 4px", borderRadius: 12,
+      background: T.cardTint, border: `1px solid ${T.line}`,
+    }}>
+      <div style={{ fontSize: 13, color: T.mute, marginBottom: 10, lineHeight: 1.5 }}>
+        Tick everything that has shown up on your statement, then enter the balance
+        your bank shows. When the difference reaches zero, CASH agrees with the bank.
+      </div>
+
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+        <label style={{ fontSize: 12, color: T.mute }}>
+          {liability ? "Balance owed on statement" : "Balance on your statement"}
+          <input type="number" step="0.01" value={statement} placeholder="0.00"
+            onChange={(e) => setStatement(e.target.value)}
+            style={{ ...inputStyle, marginTop: 4, width: 150 }} />
+        </label>
+        <div style={{ fontSize: 13 }}>
+          <div style={{ color: T.mute }}>Ticked off here</div>
+          <div style={{ ...numeral(17), marginTop: 2 }}>
+            {fmt(liability ? Math.abs(cleared) : cleared)}
+          </div>
+        </div>
+        {diff !== null && (
+          <div style={{ fontSize: 13 }}>
+            <div style={{ color: T.mute }}>Difference</div>
+            <div style={{ ...numeral(17), marginTop: 2, color: balanced ? T.pos : T.neg }}>
+              {balanced ? "$0.00 ✓" : fmt(Math.abs(diff))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {balanced && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+          padding: "10px 12px", borderRadius: 10, marginBottom: 12,
+          background: T.brassSoft, border: `1px solid ${T.line}`, fontSize: 13.5,
+        }}>
+          <span style={{ flex: 1, minWidth: 180 }}>
+            This account matches your bank. Nothing is missing or double-counted.
+          </span>
+          <button onClick={onFinish} style={{ ...btn(T.brass), padding: "7px 13px", fontSize: 13 }}>
+            Mark checked
+          </button>
+        </div>
+      )}
+
+      {rows.length === 0 ? (
+        <div style={{ fontSize: 13, color: T.mute }}>Nothing recorded against this account yet.</div>
+      ) : (
+        <div style={{ maxHeight: 280, overflowY: "auto" }}>
+          {rows.map((t, i) => (
+            <label key={t.id} style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "7px 2px",
+              borderTop: i ? `1px solid ${T.line}` : "none", fontSize: 13.5,
+              cursor: "pointer", opacity: t.cleared ? 0.62 : 1,
+            }}>
+              <input type="checkbox" checked={Boolean(t.cleared)}
+                onChange={() => toggleCleared(t.id)} style={{ accentColor: "var(--accent)" }} />
+              <span style={{ width: 62, color: T.mute, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                {t.date.slice(5)}
+              </span>
+              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {t.type === "transfer" ? (t.note || "Transfer") : (t.note || t.category)}
+              </span>
+              <span style={{ ...numeral(13.5), width: 90, textAlign: "right" }}>
+                {signFor(t) > 0 ? "+" : "−"}{fmt(t.amount)}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      <div style={{ marginTop: 12 }}>
+        <button onClick={onClose} style={{ ...ghostBtn, padding: "7px 12px", fontSize: 13, color: T.mute }}>
+          Done for now
+        </button>
+      </div>
     </div>
   );
 }
