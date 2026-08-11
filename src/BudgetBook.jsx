@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { T, CHART, DARK_THEMES, applyAccent } from "./theme.js";
 import { AppearanceMenu } from "./AppearanceMenu.jsx";
 import { AppCtx } from "./ctx.js";
@@ -10,7 +10,7 @@ import {
 import {
   fmt, uid, monthKey, todayStr, monthLabel, shiftMonth, dueDateInMonth, computeCarry,
 } from "./utils.js";
-import { buildCsvPreview } from "./csv.js";
+import { buildCsvPreview, merchantKey } from "./csv.js";
 import { btn, ghostBtn, pill, numeral, useCountUp } from "./ui.jsx";
 import { AddEntry } from "./AddEntry.jsx";
 import { Overview } from "./OverviewTab.jsx";
@@ -56,6 +56,23 @@ export default function BudgetBook() {
   const [loadProblem, setLoadProblem] = useState(null);
   const [persistence, setPersistence] = useState(null);
   const [showBackup, setShowBackup] = useState(false);
+  const [undo, setUndo] = useState(null);
+
+  // Snapshot before anything destructive. Every update replaces objects rather
+  // than mutating them, so holding the previous state is a valid snapshot.
+  // Read through a ref: a setState updater must stay pure, so it is not a
+  // place to raise the toast from.
+  const dataRef = useRef(data);
+  useEffect(() => { dataRef.current = data; }, [data]);
+  const remember = useCallback((label) => {
+    setUndo({ label, snapshot: dataRef.current, at: Date.now() });
+  }, []);
+
+  useEffect(() => {
+    if (!undo) return;
+    const id = setTimeout(() => setUndo(null), 9000);
+    return () => clearTimeout(id);
+  }, [undo]);
 
   useEffect(() => {
     const onReady = () => setUpdateReady(true);
@@ -269,7 +286,10 @@ export default function BudgetBook() {
   }, [data.transactions, month, trendRange]);
 
   const addTxs = (txs) => setData((d) => ({ ...d, transactions: [...d.transactions, ...txs] }));
-  const deleteTx = (id) => setData((d) => ({ ...d, transactions: d.transactions.filter((t) => t.id !== id) }));
+  const deleteTx = (id) => {
+    remember("Entry deleted");
+    setData((d) => ({ ...d, transactions: d.transactions.filter((t) => t.id !== id) }));
+  };
   const updateTx = (id, patch) => setData((d) => ({
     ...d, transactions: d.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
   }));
@@ -281,20 +301,23 @@ export default function BudgetBook() {
   const fundGoal = (id, amt) => setData((d) => ({
     ...d, goals: d.goals.map((g) => (g.id === id ? { ...g, saved: g.saved + amt } : g)),
   }));
-  const deleteGoal = (id) => setData((d) => ({ ...d, goals: d.goals.filter((g) => g.id !== id) }));
+  const deleteGoal = (id) => {
+    remember("Goal removed");
+    setData((d) => ({ ...d, goals: d.goals.filter((g) => g.id !== id) }));
+  };
 
   const addBill = (b) => setData((d) => ({ ...d, bills: [...d.bills, b] }));
   const updateBill = (id, patch) => setData((d) => ({
     ...d, bills: d.bills.map((b) => (b.id === id ? { ...b, ...patch } : b)),
   }));
-  const deleteBill = (id) => setData((d) => {
+  const deleteBill = (id) => { remember("Bill deleted"); setData((d) => {
     const billPaid = {};
     Object.entries(d.billPaid).forEach(([ym, m]) => {
       const { [id]: _, ...rest } = m;
       billPaid[ym] = rest;
     });
     return { ...d, bills: d.bills.filter((b) => b.id !== id), billPaid };
-  });
+  }); };
   // Paying a bill writes a real expense transaction, so it flows into totals and budgets
   const markBillPaid = (bill) => setData((d) => {
     const tx = {
@@ -331,14 +354,14 @@ export default function BudgetBook() {
   const updateIncome = (id, patch) => setData((d) => ({
     ...d, incomes: d.incomes.map((x) => (x.id === id ? { ...x, ...patch } : x)),
   }));
-  const deleteIncome = (id) => setData((d) => {
+  const deleteIncome = (id) => { remember("Income removed"); setData((d) => {
     const incomePaid = {};
     Object.entries(d.incomePaid).forEach(([ym, m]) => {
       const { [id]: _, ...rest } = m;
       incomePaid[ym] = rest;
     });
     return { ...d, incomes: d.incomes.filter((x) => x.id !== id), incomePaid };
-  });
+  }); };
   const markIncomeReceived = (inc) => setData((d) => {
     const tx = {
       id: uid(), type: "income", amount: inc.amount, category: inc.category,
@@ -367,20 +390,22 @@ export default function BudgetBook() {
   }));
   // Removing an account keeps its transactions — deleting someone's spending
   // history because they closed a bank account would be its own bug
-  const deleteAccount = (id) => setData((d) => ({
-    ...d, accounts: d.accounts.filter((a) => a.id !== id),
-  }));
+  const deleteAccount = (id) => {
+    remember("Account removed");
+    setData((d) => ({ ...d, accounts: d.accounts.filter((a) => a.id !== id) }));
+  };
   const addTransfer = (t) => setData((d) => ({ ...d, transactions: [...d.transactions, t] }));
 
   const addCustomCat = (c) => setData((d) => ({ ...d, customCats: [...d.customCats, c] }));
-  const deleteCustomCat = (name) => setData((d) => ({
-    ...d, customCats: d.customCats.filter((c) => c.name !== name),
-  }));
+  const deleteCustomCat = (name) => {
+    remember("Category removed");
+    setData((d) => ({ ...d, customCats: d.customCats.filter((c) => c.name !== name) }));
+  };
 
   const importCsv = (file) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const res = buildCsvPreview(String(reader.result), data.transactions);
+      const res = buildCsvPreview(String(reader.result), data.transactions, data.categoryRules);
       if (res.error) window.alert(res.error);
       else setCsvPreview(res);
     };
@@ -410,6 +435,7 @@ export default function BudgetBook() {
         if (window.confirm(
           `Replace your current ledger with this backup${wrote}? All existing data will be overwritten.`
         )) {
+          remember("Backup restored");
           // File-only metadata; don't let it linger in live state and go stale
           const { appVersion, exportedAt, ...ledger } = parsed;
           setData({ ...DEFAULTS, ...ledger });
@@ -642,6 +668,26 @@ export default function BudgetBook() {
         </>
       )}
 
+      {undo && (
+        <div style={{
+          position: "fixed", left: "50%", transform: "translateX(-50%)",
+          bottom: isMobile ? 118 : 20, zIndex: 46,
+          display: "flex", alignItems: "center", gap: 10, whiteSpace: "nowrap",
+          padding: "10px 10px 10px 16px", borderRadius: 14, fontSize: 13.5,
+          background: T.card, color: T.ink, border: `1px solid ${T.line}`,
+          boxShadow: "0 12px 32px -12px rgba(0,0,0,0.4)",
+          animation: "riseIn 200ms ease both",
+        }}>
+          <span>{undo.label}</span>
+          <button onClick={() => { setData(undo.snapshot); setUndo(null); }}
+            style={{ ...btn(T.brass), padding: "7px 13px", fontSize: 13 }}>
+            Undo
+          </button>
+          <button onClick={() => setUndo(null)} aria-label="Dismiss"
+            style={{ ...btn("transparent", T.mute), padding: "4px 8px", fontSize: 16 }}>×</button>
+        </div>
+      )}
+
       {updateReady && (
         <div style={{
           position: "fixed", left: "50%", transform: "translateX(-50%)",
@@ -674,9 +720,22 @@ export default function BudgetBook() {
       {csvPreview && (
         <CsvImportModal preview={csvPreview}
           onConfirm={(rows) => {
-            addTxs(rows.map((r) => ({
-              id: uid(), type: r.type, amount: r.amount, category: r.category, date: r.date, note: r.note,
-            })));
+            remember(`${rows.length} ${rows.length === 1 ? "entry" : "entries"} imported`);
+            // Learn the categories chosen here, so the next statement lands
+            // already sorted
+            const learned = {};
+            rows.forEach((r) => {
+              const key = merchantKey(r.note);
+              if (key) learned[key] = r.category;
+            });
+            setData((d) => ({
+              ...d,
+              transactions: [...d.transactions, ...rows.map((r) => ({
+                id: uid(), type: r.type, amount: r.amount, category: r.category,
+                date: r.date, note: r.note,
+              }))],
+              categoryRules: { ...d.categoryRules, ...learned },
+            }));
             setCsvPreview(null);
           }}
           onClose={() => setCsvPreview(null)} />

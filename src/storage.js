@@ -12,6 +12,8 @@ export const DEFAULTS = {
   version: SCHEMA_VERSION,
   transactions: [], budgets: {}, goals: [], bills: [], billPaid: {},
   incomes: [], incomePaid: {}, budgetRollover: {}, customCats: [], accounts: [],
+  // merchant key -> category, learned from what you pick during CSV import
+  categoryRules: {},
   // month -> billId -> true. Records that the user undid an auto-pay for that
   // month, so it is not immediately re-applied.
   autoPaySkip: {},

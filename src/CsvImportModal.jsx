@@ -30,7 +30,8 @@ export function CsvImportModal({ preview, onConfirm, onClose }) {
         }>Import from CSV</SectionTitle>
         <p style={{ margin: "0 0 10px", fontSize: 13, color: T.mute }}>
           {rows.length} {rows.length === 1 ? "row" : "rows"} found. Rows that look like duplicates
-          of existing entries start unchecked. Adjust categories, then import.
+          of existing entries start unchecked. Adjust categories, then import — CASH
+          remembers what you pick and applies it to that merchant next time.
         </p>
         <div style={{ overflowY: "auto", flex: 1, minHeight: 0, border: `1px solid ${T.line}`, borderRadius: 10, padding: "0 10px" }}>
           {rows.map((r, i) => (
@@ -45,6 +46,9 @@ export function CsvImportModal({ preview, onConfirm, onClose }) {
               <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: T.ink }}>
                 {r.note || "(no description)"}
                 {r.dup && <span style={{ color: T.brass }}> · duplicate?</span>}
+                {r.remembered && !r.dup && (
+                  <span style={{ color: T.mute }} title="Category you chose for this merchant before"> · remembered</span>
+                )}
               </span>
               <span style={{
                 fontVariantNumeric: "tabular-nums", fontWeight: 600, width: 82, textAlign: "right",

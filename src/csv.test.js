@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCsv, parseCsvDate, guessCategory, buildCsvPreview } from "./csv.js";
+import { parseCsv, parseCsvDate, guessCategory, buildCsvPreview, merchantKey } from "./csv.js";
 
 describe("parseCsv", () => {
   it("splits simple rows and skips blank lines", () => {
@@ -42,6 +42,49 @@ describe("guessCategory", () => {
   it("maps income descriptions", () => {
     expect(guessCategory("PAYROLL DIRECT DEP", true)).toBe("Salary");
     expect(guessCategory("VENMO TRANSFER", true)).toBe("Other income");
+  });
+});
+
+describe("merchantKey", () => {
+  it("ignores store and terminal numbers", () => {
+    expect(merchantKey("KROGER #442")).toBe(merchantKey("KROGER #118"));
+    expect(merchantKey("KROGER #442")).toBe("kroger");
+  });
+
+  it("keeps enough words to tell merchants apart", () => {
+    expect(merchantKey("SQ *COFFEE SHOP 123")).toBe("sq coffee shop");
+    expect(merchantKey("AMZN Mktp US*2K4LD")).not.toBe(merchantKey("AMZN Prime*99XYZ"));
+  });
+
+  it("is case and punctuation insensitive", () => {
+    expect(merchantKey("trader joe's")).toBe(merchantKey("TRADER JOE'S #55"));
+  });
+
+  it("returns empty for a description with nothing in it", () => {
+    expect(merchantKey("")).toBe("");
+    expect(merchantKey("#### 1234")).toBe("");
+  });
+});
+
+describe("category memory", () => {
+  const csv = "Date,Description,Amount\n2026-08-03,KROGER #442,-52.18\n2026-08-09,SHELL OIL 5734,-38.40";
+
+  it("uses a remembered category over the built-in guess", () => {
+    const res = buildCsvPreview(csv, [], { kroger: "Dining" });
+    expect(res.rows[0]).toMatchObject({ category: "Dining", remembered: true });
+    // untouched merchants still fall back to the keyword guess
+    expect(res.rows[1]).toMatchObject({ category: "Transport", remembered: false });
+  });
+
+  it("applies what was learned to a different branch of the same shop", () => {
+    const other = "Date,Description,Amount\n2026-09-01,KROGER #118,-61.00";
+    const res = buildCsvPreview(other, [], { kroger: "Household" });
+    expect(res.rows[0].category).toBe("Household");
+  });
+
+  it("falls back cleanly when nothing has been learned", () => {
+    const res = buildCsvPreview(csv, [], {});
+    expect(res.rows[0]).toMatchObject({ category: "Groceries", remembered: false });
   });
 });
 

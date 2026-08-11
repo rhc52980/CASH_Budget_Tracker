@@ -102,7 +102,10 @@ Pages via Actions. See `CLAUDE.md` for architecture notes.
 - **Backup & data panel** — export/restore backup files, browse automatic
   local snapshots and roll back to one, and see storage protection status
 - **CSV import** — load a bank statement export; columns are auto-detected, categories
-  guessed from merchant names, and likely duplicates flagged before anything is saved
+  guessed from merchant names, and likely duplicates flagged before anything is saved.
+  Corrections are remembered per merchant, so each statement lands better sorted than
+  the last — and store numbers are ignored, so KROGER #442 and KROGER #118 count as one shop.
+- **Undo** — deletions, restores and imports show an Undo button for a few seconds
 - **Year view** — annual totals, net by month, category breakdown, and year notes
 - **Custom categories** — add your own expense categories with a color of your choice
 - **Appearance** — Light, Dark, Midnight (true black for OLED), High contrast, or

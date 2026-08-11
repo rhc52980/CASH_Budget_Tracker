@@ -46,13 +46,27 @@ const CAT_KEYWORDS = [
   [/movie|cinema|theater|steam|playstation|xbox|nintendo|ticketmaster|concert|bowling/i, "Entertainment"],
 ];
 
+/**
+ * Stable key for a merchant, so "KROGER #442" and "KROGER #118" are recognised
+ * as the same shop. Drops digits and punctuation (store and terminal numbers)
+ * and keeps the first few words, which is where the actual name lives.
+ */
+export function merchantKey(desc) {
+  const cleaned = (desc || "")
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned ? cleaned.split(" ").slice(0, 3).join(" ") : "";
+}
+
 export function guessCategory(desc, isIncome) {
   if (isIncome) return /payroll|salary|direct dep|paycheck|\bdd\b/i.test(desc) ? "Salary" : "Other income";
   for (const [re, cat] of CAT_KEYWORDS) if (re.test(desc)) return cat;
   return "Other";
 }
 
-export function buildCsvPreview(text, existingTx) {
+export function buildCsvPreview(text, existingTx, learned = {}) {
   const grid = parseCsv(text);
   if (grid.length < 2) return { error: "Couldn't find any data rows in that file." };
 
@@ -98,7 +112,14 @@ export function buildCsvPreview(text, existingTx) {
     if (!amount) return;
     const note = (iDesc !== -1 ? r[iDesc] || "" : "").trim().slice(0, 80);
     const dup = dupKeys.has(`${date}|${amount.toFixed(2)}|${type}`);
-    rows.push({ date, amount, type, note, category: guessCategory(note, type === "income"), dup, include: !dup });
+    // What you chose last time for this merchant beats the built-in guess
+    const remembered = learned[merchantKey(note)];
+    rows.push({
+      date, amount, type, note,
+      category: remembered || guessCategory(note, type === "income"),
+      remembered: Boolean(remembered),
+      dup, include: !dup,
+    });
   });
 
   if (!rows.length) return { error: "No usable rows found — check that the file has date and amount values." };
