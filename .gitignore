@@ -36,3 +36,6 @@ venv/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Written by Update-CASH.bat on every run
+update-log.txt
