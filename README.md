@@ -155,4 +155,8 @@ Built with React + Vite; charts by Recharts. CASH is not hosted — pushes to
   separation against that background
 - **Mobile-first on phones** — bottom tab bar and a floating add button under 640px
 - **Backup nudges** — a gentle reminder when your last export is more than 30 days old
+- **Feedback link** — a Feedback link in the footer opens the project's GitHub
+  Issues page for bug reports and feature requests. The repository must be public
+  with Issues enabled for anyone other than the owner to reach it; the URL lives in
+  `FEEDBACK_URL` in `src/constants.js`.
 - **Installable PWA** — add it to your phone or desktop; works offline (production build)

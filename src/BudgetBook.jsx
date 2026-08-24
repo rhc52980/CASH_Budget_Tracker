@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { T, CHART, DARK_THEMES, applyAccent } from "./theme.js";
 import { AppearanceMenu } from "./AppearanceMenu.jsx";
 import { AppCtx } from "./ctx.js";
-import { EXPENSE_CATS, INCOME_CATS } from "./constants.js";
+import { EXPENSE_CATS, INCOME_CATS, FEEDBACK_URL } from "./constants.js";
 import {
   DEFAULTS, loadLedger, saveLedger, takeSnapshot, quarantine,
   requestPersistence, markExported,
@@ -639,11 +639,18 @@ export default function BudgetBook() {
         )}
 
         <footer style={{
-          display: "flex", justifyContent: "flex-end",
+          display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10,
           padding: "20px 2px 4px", fontSize: 11.5, color: T.mute,
-          fontVariantNumeric: "tabular-nums",
         }}>
-          <span title={`CASH version ${APP_VERSION}`}>v{APP_VERSION}</span>
+          <a href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer"
+            title="Report a bug or request a feature on GitHub (opens in a new tab)"
+            style={{ color: T.mute, textDecoration: "none", borderBottom: `1px solid ${T.line}` }}>
+            Feedback
+          </a>
+          <span aria-hidden style={{ opacity: 0.5 }}>·</span>
+          <span title={`CASH version ${APP_VERSION}`} style={{ fontVariantNumeric: "tabular-nums" }}>
+            v{APP_VERSION}
+          </span>
         </footer>
       </div>
 

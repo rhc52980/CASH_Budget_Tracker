@@ -1,5 +1,9 @@
 export const STORE_KEY = "budget-book-v1";
 
+// Where the Feedback link goes. The repository must be public with Issues
+// enabled for anyone other than the owner to reach this.
+export const FEEDBACK_URL = "https://github.com/rhc52980/CASH_Budget_Tracker/issues";
+
 export const EXPENSE_CATS = [
   "Housing", "Groceries", "Dining", "Transport", "Utilities",
   "Health", "Entertainment", "Shopping", "Subscriptions", "Other",
