@@ -58,14 +58,27 @@ because the app is served from your own machine.
 
 1. Install Node.js — `sudo apt install nodejs npm` on Debian/Ubuntu,
    `sudo dnf install nodejs npm` on Fedora, `sudo pacman -S nodejs npm` on Arch.
-2. Extract the archive anywhere and run:
+2. Download the **`.tar.gz`**, extract it anywhere, and run the installer:
 
 ```
+tar -xzf CASH-*-linux.tar.gz
+cd CASH_Budget_Tracker
 ./install.sh
 ```
 
+Use the `.tar.gz` rather than the `.zip` on Linux: zip archives cannot store the
+executable bit, so the scripts arrive unrunnable. If you only have the zip, start
+it with `bash install.sh` instead — no `chmod` needed.
+
 It copies CASH to `~/.local/share/cash`, builds it, installs the icon and adds
-CASH to your applications menu. Then delete the folder you downloaded.
+CASH to your applications menu. Then delete the folder you downloaded. Nothing
+is installed system-wide and nothing needs `sudo`.
+
+To install somewhere else, pass a path:
+
+```
+./install.sh ~/apps/cash
+```
 
 | Script | What it does |
 | --- | --- |
@@ -73,6 +86,9 @@ CASH to your applications menu. Then delete the folder you downloaded.
 | `start.sh` | Starts CASH in the background and opens it. Same as the menu entry. |
 | `stop.sh` | Shuts it down. |
 | `update.sh` | Fetches the newest version and rebuilds. |
+
+(`cash-common.sh` is shared helper code the others source; you never run it
+directly. `cash.desktop.in` is the menu-entry template `install.sh` fills in.)
 
 CASH uses **port 4173** deliberately — browser storage is keyed to the exact
 address, so running it elsewhere would show an empty ledger. Set `CASH_PORT` if
