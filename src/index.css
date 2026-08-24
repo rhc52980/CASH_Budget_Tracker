@@ -10,16 +10,16 @@
   --border: #e8eaee;
   --text: #0e1116;
   --muted: #6c7480;
-  --accent: #4a7a1e;
+  --accent: #547010;
   --accent-ink: #ffffff;
-  --accent-soft: #edf4e2;
+  --accent-soft: #eff5de;
   --pos: #0a7d57;
   --neg: #c0392c;
   --track: #edeff2;
   --input-bg: #ffffff;
   --shadow: 0 1px 2px rgba(14, 17, 22, 0.04), 0 8px 24px -12px rgba(14, 17, 22, 0.1);
   --overlay: rgba(14, 17, 22, 0.45);
-  --ring: rgba(74, 122, 30, 0.22);
+  --ring: rgba(84, 112, 16, 0.22);
   color-scheme: light;
 }
 
@@ -30,16 +30,16 @@
   --border: #262b31;
   --text: #f2f5f8;
   --muted: #98a2ae;
-  --accent: #7db342;
+  --accent: #a5d427;
   --accent-ink: #08110d;
-  --accent-soft: #1e2a14;
+  --accent-soft: #232b12;
   --pos: #34d39a;
   --neg: #e0705f;
   --track: #23272d;
   --input-bg: #12151a;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -14px rgba(0, 0, 0, 0.7);
   --overlay: rgba(0, 0, 0, 0.6);
-  --ring: rgba(125, 179, 66, 0.25);
+  --ring: rgba(165, 212, 39, 0.25);
   color-scheme: dark;
 }
 
@@ -52,16 +52,16 @@
   --border: #22262a;
   --text: #f4f6f8;
   --muted: #96a0ab;
-  --accent: #7db342;
+  --accent: #a5d427;
   --accent-ink: #08110d;
-  --accent-soft: #1a2412;
+  --accent-soft: #1e260f;
   --pos: #34d39a;
   --neg: #e0705f;
   --track: #1a1a1a;
   --input-bg: #0a0a0a;
   --shadow: none;
   --overlay: rgba(0, 0, 0, 0.75);
-  --ring: rgba(125, 179, 66, 0.3);
+  --ring: rgba(165, 212, 39, 0.3);
   color-scheme: dark;
 }
 
@@ -74,9 +74,9 @@
   --text: #000000;
   --muted: #3f464e;
   /* Matches the default accent that theme.js writes on first paint */
-  --accent: #4a7a1e;
+  --accent: #547010;
   --accent-ink: #ffffff;
-  --accent-soft: #edf4e2;
+  --accent-soft: #eff5de;
   --pos: #0c6539;
   --neg: #a1271b;
   --track: #d8dade;

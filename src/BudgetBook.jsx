@@ -44,7 +44,7 @@ export default function BudgetBook() {
   const [trendKind, setTrendKind] = useState("flow");
   const [csvPreview, setCsvPreview] = useState(null);
   const [themePref, setThemePref] = useState(initialThemePref);
-  const [accent, setAccent] = useState(() => localStorage.getItem("cash-accent") || "goat");
+  const [accent, setAccent] = useState(() => localStorage.getItem("cash-accent") || "lime");
   const [sysDark, setSysDark] = useState(systemPrefersDark);
   const [showAppearance, setShowAppearance] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 640px)").matches);

@@ -33,8 +33,12 @@ export const DARK_THEMES = new Set(["dark", "midnight"]);
  * Light column: white text. Dark column: near-black text.
  */
 export const ACCENTS = [
-  // Sampled from the logo: the dark step keeps the ring's yellow-green hue,
-  // the light step is that hue darkened until white text clears AA.
+  // Sampled from the logo artwork: the dark step is the lime of the dollar
+  // sign itself, the light step is that same hue darkened until white text
+  // clears AA. Measured, not eyeballed - 10.99:1 dark, 5.67:1 light.
+  { id: "lime", label: "Lime",
+    light: { accent: "#547010", ink: "#FFFFFF", soft: "#EFF5DE" },
+    dark: { accent: "#A5D427", ink: "#08110D", soft: "#232B12" } },
   { id: "goat", label: "Goat green",
     light: { accent: "#4A7A1E", ink: "#FFFFFF", soft: "#EDF4E2" },
     dark: { accent: "#7DB342", ink: "#08110D", soft: "#1E2A14" } },
