@@ -3,6 +3,8 @@ REM Fetches the newest version and rebuilds. Your ledger is untouched.
 setlocal
 title Update CASH
 cd /d "%~dp0"
+set "LOG=%~dp0update-log.txt"
+echo CASH update started %DATE% %TIME% > "%LOG%"
 
 echo ===============================================
 echo   CASH - Update
@@ -12,9 +14,7 @@ echo.
 where node >nul 2>nul
 if errorlevel 1 (
   echo Node.js is not installed. Run Install-CASH.bat first.
-  echo.
-  pause
-  exit /b 1
+  goto done
 )
 
 for /f "usebackq delims=" %%v in (`node -p "require('./package.json').version" 2^>nul`) do set "OLDVER=%%v"
@@ -24,12 +24,16 @@ echo Your ledger lives in your browser, not in this folder,
 echo so updating cannot affect it.
 echo.
 
-if not exist ".git\" goto nogit
+REM CASH holds files open while it runs, which makes npm fail partway through.
+echo [1/4] Stopping CASH if it is running...
+call "%~dp0Stop-CASH.bat" >nul 2>&1
+echo       done.
+echo.
 
+if not exist ".git\" goto nogit
 where git >nul 2>nul
 if errorlevel 1 goto nogitcmd
 
-REM Refuse to pull over local edits rather than clobbering them
 for /f "usebackq delims=" %%s in (`git status --porcelain 2^>nul`) do set "DIRTY=1"
 if defined DIRTY (
   echo -----------------------------------------------
@@ -40,47 +44,56 @@ if defined DIRTY (
   echo   run:  git checkout .
   echo   then run this updater again.
   echo -----------------------------------------------
-  echo.
-  pause
-  exit /b 1
+  goto done
 )
 
-echo [1/3] Fetching the latest version...
-call git pull --ff-only
-if errorlevel 1 goto pullfailed
+echo [2/4] Fetching the latest version...
+git pull --ff-only >> "%LOG%" 2>&1
+if errorlevel 1 (
+  echo       could not fetch - see update-log.txt
+  echo       nothing was changed.
+  goto done
+)
+for /f "usebackq delims=" %%c in (`git log -1 --format^=%%s 2^>nul`) do set "TIP=%%c"
+echo       now at: %TIP%
 echo.
 
-goto rebuild
-
-:rebuild
-echo [2/3] Updating dependencies...
-call npm install --no-fund --no-audit
-if errorlevel 1 goto failed
+echo [3/4] Updating dependencies...
+call npm install --no-fund --no-audit >> "%LOG%" 2>&1
+if errorlevel 1 (
+  echo       FAILED - see update-log.txt
+  goto done
+)
+echo       done.
 echo.
 
-echo [3/3] Rebuilding...
-call npm run build
-if errorlevel 1 goto failed
+echo [4/4] Rebuilding the app...
+call npm run build >> "%LOG%" 2>&1
+if errorlevel 1 (
+  echo       FAILED - see update-log.txt
+  goto done
+)
+echo       done.
 echo.
 
 for /f "usebackq delims=" %%v in (`node -p "require('./package.json').version" 2^>nul`) do set "NEWVER=%%v"
-
 echo ===============================================
 if "%OLDVER%"=="%NEWVER%" (
   echo   Already on the latest version - v%NEWVER%
 ) else (
-  echo   Updated: v%OLDVER%  ^-^>  v%NEWVER%
+  echo   Updated: v%OLDVER%  to  v%NEWVER%
 )
 echo.
-echo   Start CASH as usual. If the app still looks
-echo   like the old version, it will offer a Refresh
-echo   button - click it, or reload the page once.
+echo   A full log is in update-log.txt
 echo ===============================================
 echo.
+
 choice /c YN /n /m "Start CASH now? [Y/N] "
-if errorlevel 2 goto bye
+if errorlevel 2 goto done
 start "" "%~dp0CASH.vbs"
-goto bye
+echo.
+echo Starting CASH...
+goto done
 
 :nogit
 echo -----------------------------------------------
@@ -90,42 +103,25 @@ echo.
 echo   To update:
 echo     1. Download the latest ZIP from
 echo        https://github.com/rhc52980/CASH_Budget_Tracker
-echo     2. Extract it over this folder, or into a new
-echo        one and run Install-CASH.bat there
+echo     2. Extract it, then run Install-CASH.bat
 echo.
-echo   Either way your ledger stays put - it is stored
+echo   Your ledger stays put either way - it is stored
 echo   in your browser, not in these files.
 echo -----------------------------------------------
-echo.
-pause
-exit /b 0
+goto done
 
 :nogitcmd
 echo Git is not installed, so this copy cannot pull updates.
 echo Install it from https://git-scm.com or download the
 echo latest ZIP from the project page instead.
-echo.
-pause
-exit /b 1
+goto done
 
-:pullfailed
+:done
 echo.
-echo Could not fetch updates - the error is above.
-echo A network problem or a change to the remote is most likely.
-echo Nothing was modified.
-echo.
-pause
-exit /b 1
-
-:failed
-echo.
-echo Update failed - the error is above.
-echo Your previous build is still in place.
-echo.
-pause
-exit /b 1
-
-:bye
+echo -----------------------------------------------
+echo   Finished. This window stays open so you can
+echo   read what happened above.
+echo -----------------------------------------------
 echo.
 pause
 endlocal

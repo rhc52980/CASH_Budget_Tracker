@@ -69,7 +69,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$s = $sh.CreateShortcut($lnk);" ^
   "$s.TargetPath = (Join-Path $here 'CASH.vbs');" ^
   "$s.WorkingDirectory = $here;" ^
-  "$s.IconLocation = ((Join-Path $here 'cash.ico') + ',0');" ^
+  "$s.IconLocation = ((Join-Path $here 'app.ico') + ',0');" ^
   "$s.Description = 'CASH - Count All Spending Habits';" ^
   "$s.WindowStyle = 7; $s.Save();" ^
   "Write-Host ('      Created: ' + $lnk)"
