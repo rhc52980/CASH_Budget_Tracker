@@ -3,10 +3,8 @@
 Personal budgeting ledger. Track income and expenses by month, check off
 monthly bills, set per-category budgets, and fund savings goals.
 
-Your data stays in your browser — no account, no server, nothing uploaded.
-
-CASH runs on your own machine. Nothing is hosted, nothing is uploaded, and
-there is no account.
+CASH runs on your own machine. Your data stays in your browser — no account,
+no server, nothing uploaded.
 
 ## Getting started on Windows
 
@@ -97,8 +95,8 @@ npm run build    # production bundle in dist/
 npm run preview  # serve the production build on :4173
 ```
 
-Built with React + Vite; charts by Recharts. Pushes to `main` deploy to GitHub
-Pages via Actions. See `CLAUDE.md` for architecture notes.
+Built with React + Vite; charts by Recharts. CASH is not hosted — pushes to
+`main` only run the tests and build. See `CLAUDE.md` for architecture notes.
 
 ## Features
 
@@ -136,8 +134,8 @@ Pages via Actions. See `CLAUDE.md` for architecture notes.
 - **Year view** — annual totals, net by month, category breakdown, and year notes
 - **Custom categories** — add your own expense categories with a color of your choice
 - **Appearance** — Light, Dark, Midnight (true black for OLED), High contrast, or
-  Follow system, plus six accent colours (Goat green by default, sampled from the
-  logo); each theme has its own chart palette validated for colourblind
+  Follow system, plus seven accent colours (Lime by default, sampled from the
+  logo artwork); each theme has its own chart palette validated for colourblind
   separation against that background
 - **Mobile-first on phones** — bottom tab bar and a floating add button under 640px
 - **Backup nudges** — a gentle reminder when your last export is more than 30 days old
