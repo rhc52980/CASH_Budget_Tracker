@@ -56,6 +56,30 @@ address bar (a monitor with a downward arrow), or use the ⋮ menu →
 menu and opens in its own window. You still need to run `Start-CASH.bat` first,
 because the app is served from your own machine.
 
+## Getting started on Linux
+
+1. Install Node.js — `sudo apt install nodejs npm` on Debian/Ubuntu,
+   `sudo dnf install nodejs npm` on Fedora, `sudo pacman -S nodejs npm` on Arch.
+2. Extract the archive anywhere and run:
+
+```
+./install.sh
+```
+
+It copies CASH to `~/.local/share/cash`, builds it, installs the icon and adds
+CASH to your applications menu. Then delete the folder you downloaded.
+
+| Script | What it does |
+| --- | --- |
+| `install.sh` | First-time setup. Run once. Takes an optional install path. |
+| `start.sh` | Starts CASH in the background and opens it. Same as the menu entry. |
+| `stop.sh` | Shuts it down. |
+| `update.sh` | Fetches the newest version and rebuilds. |
+
+CASH uses **port 4173** deliberately — browser storage is keyed to the exact
+address, so running it elsewhere would show an empty ledger. Set `CASH_PORT` if
+you genuinely need a different one, but be aware it is a different ledger.
+
 ## Versioning
 
 The version shown in the bottom-right corner of the app comes from

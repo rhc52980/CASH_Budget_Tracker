@@ -1,0 +1,22 @@
+# Line endings are load-bearing: this repo is edited on Windows but ships
+# shell scripts that bash has to read on Linux. Committed as CRLF, install.sh
+# would arrive with a \r on every line and bash would reject it:
+#   $'\r': command not found
+# Scoped to the file types where it matters, so nothing else is reformatted.
+
+# Must be LF - executed by bash / read by the desktop entry spec.
+*.sh        text eol=lf
+*.desktop   text eol=lf
+
+# Must be CRLF - cmd.exe and the Windows script host expect it.
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+*.vbs       text eol=crlf
+
+# Never convert.
+*.png       binary
+*.jpg       binary
+*.ico       binary
+*.woff2     binary
+*.zip       binary

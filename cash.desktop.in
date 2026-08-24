@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=CASH
+GenericName=Budget Tracker
+Comment=Count All Spending Habits - personal budgeting ledger
+Exec=@TARGET@/start.sh
+Icon=cash
+Terminal=false
+Categories=Office;Finance;
+Keywords=budget;money;finance;spending;ledger;
+StartupNotify=true
