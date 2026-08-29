@@ -3,8 +3,8 @@
 Personal budgeting ledger. Track income and expenses by month, check off
 monthly bills, set per-category budgets, and fund savings goals.
 
-CASH runs on your own machine. Your data stays in your browser — no account,
-no server, nothing uploaded.
+CASH runs entirely on your own machine — no account, nothing uploaded. Your
+ledger is a plain JSON file in the CASH folder.
 
 ## Getting started on Windows
 
@@ -38,13 +38,12 @@ your browser opens at <http://localhost:4173>. It keeps running until you run
 `Stop-CASH.bat`, sign out, or restart — closing the browser tab does not stop it,
 so you can come back to the tab any time.
 
-CASH always uses **port 4173** deliberately. Browsers store data per web
-address, so running it on a different port would show an empty ledger. If the
-port is busy the launcher stops with an explanation rather than quietly moving.
+CASH uses **port 4173**. If it is busy the launcher stops with an explanation
+rather than quietly moving to another port.
 
-Updating never touches your ledger: it lives in your browser, not in these
-files. After an update the app may offer a **Refresh** button — click it to load
-the new version.
+Updating never touches your ledger: `data/` is left alone by installs, updates
+and rebuilds. After an update the app may offer a **Refresh** button — click it
+to load the new version.
 
 ### Install it as a desktop app
 
@@ -52,7 +51,7 @@ With CASH open in Chrome or Edge, click the install icon at the right of the
 address bar (a monitor with a downward arrow), or use the ⋮ menu →
 *Cast, save, and share* → *Install page as app*. It then lives in your Start
 menu and opens in its own window. You still need to run `Start-CASH.bat` first,
-because the app is served from your own machine.
+because the app and your ledger are both served from your own machine.
 
 ## Getting started on Linux
 
@@ -90,9 +89,8 @@ To install somewhere else, pass a path:
 (`cash-common.sh` is shared helper code the others source; you never run it
 directly. `cash.desktop.in` is the menu-entry template `install.sh` fills in.)
 
-CASH uses **port 4173** deliberately — browser storage is keyed to the exact
-address, so running it elsewhere would show an empty ledger. Set `CASH_PORT` if
-you genuinely need a different one, but be aware it is a different ledger.
+CASH uses **port 4173**. Set `CASH_PORT` if you need a different one; the ledger
+file is the same either way.
 
 ## Where your data lives
 
@@ -160,8 +158,8 @@ Built with React + Vite; charts by Recharts. CASH is not hosted — pushes to
 - **Goals** — savings goals you can fund incrementally
 - **Transactions** — full monthly ledger with search, type/category filters, inline editing, and delete
 - **Split entries** — divide one receipt across several categories in the add form
-- **Backup & data panel** — export/restore backup files, browse automatic
-  local snapshots and roll back to one, and see storage protection status
+- **Backup & data panel** — export/restore backup files, see where the ledger
+  file lives, and roll back to any of the automatic on-disk backups
 - **CSV import** — load a bank statement export; columns are auto-detected, categories
   guessed from merchant names, and likely duplicates flagged before anything is saved.
   Corrections are remembered per merchant, so each statement lands better sorted than
