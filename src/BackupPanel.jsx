@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { T } from "./theme.js";
 import { fmt } from "./utils.js";
 import { Card, SectionTitle, btn, ghostBtn } from "./ui.jsx";
-import {
-  listSnapshots, readSnapshot, storageUsage, lastExportAt, requestPersistence,
-} from "./storage.js";
+import { listBackups, restoreBackup, lastExportAt } from "./storage.js";
 import { APP_VERSION } from "./version.js";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -29,30 +27,26 @@ function Row({ label, value, tone }) {
   );
 }
 
-export function BackupPanel({ data, onExport, onImportJson, onImportCsv, onRestore, persistence, onClose }) {
+export function BackupPanel({ data, onExport, onImportJson, onImportCsv, onRestore, onClose }) {
   const [snaps, setSnaps] = useState([]);
-  const [usage, setUsage] = useState(null);
-  const [persist, setPersist] = useState(persistence);
+  const [dir, setDir] = useState(null);
 
   useEffect(() => {
-    setSnaps(listSnapshots());
-    storageUsage().then(setUsage);
+    listBackups().then((r) => { setSnaps(r.backups); setDir(r.dir); });
   }, []);
 
   const lastExport = lastExportAt();
   const entryCount = data.transactions.length;
   const stale = !lastExport || Date.now() - lastExport > 30 * DAY;
 
-  const restore = (key) => {
-    const snap = readSnapshot(key);
-    if (!snap) { window.alert("That snapshot could not be read."); return; }
-    const when = ago(Number(key.replace("cash-snap-", "")));
-    if (window.confirm(
-      `Restore the snapshot from ${when}? It has ${snap.transactions.length} entries and will replace what's in the app now.`
-    )) {
-      onRestore(snap);
-      onClose();
-    }
+  const restore = async (b) => {
+    if (!window.confirm(
+      `Restore the backup from ${ago(b.at)}? It has ${b.count ?? "?"} entries and will replace what is in the app now.`
+    )) return;
+    const res = await restoreBackup(b.name);
+    if (!res.ok) { window.alert(`That backup could not be restored (${res.error}).`); return; }
+    onRestore(res.data);
+    onClose();
   };
 
   return (
@@ -68,9 +62,9 @@ export function BackupPanel({ data, onExport, onImportJson, onImportCsv, onResto
           }>Backup &amp; data</SectionTitle>
 
           <p style={{ margin: "0 0 4px", fontSize: 13.5, color: T.mute, lineHeight: 1.55 }}>
-            Your ledger is stored in this browser. App updates never touch it — but
-            clearing browsing data does, and other devices have their own copy.
-            An exported file is the only backup that outlives this browser.
+            Your ledger is a file inside the CASH folder. App updates never touch it,
+            and clearing your browser no longer affects it. Copy the folder, or export
+            a file, to take your data elsewhere.
           </p>
 
           <div style={{ marginTop: 14 }}>
@@ -79,17 +73,7 @@ export function BackupPanel({ data, onExport, onImportJson, onImportCsv, onResto
             <Row label="Last exported file"
               value={lastExport ? ago(lastExport) : "never"}
               tone={stale ? T.neg : T.pos} />
-            <Row label="Eviction protection"
-              value={
-                persist === "persisted" ? "On — browser won't evict"
-                  : persist === "best-effort" ? "Best effort (browser declined)"
-                  : "Not supported here"
-              }
-              tone={persist === "persisted" ? T.pos : T.mute} />
-            {usage && (
-              <Row label="Space used"
-                value={`${(usage.usage / 1024).toFixed(0)} KB of ${(usage.quota / 1024 / 1024).toFixed(0)} MB`} />
-            )}
+            <Row label="Ledger file" value={dir ? dir.replace(/backups$/, "ledger.json") : "…"} />
           </div>
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 16 }}>
@@ -106,27 +90,18 @@ export function BackupPanel({ data, onExport, onImportJson, onImportCsv, onResto
             </label>
           </div>
 
-          {persist !== "persisted" && (
-            <button
-              onClick={() => requestPersistence().then(setPersist)}
-              style={{ ...ghostBtn, marginTop: 10, fontSize: 13, padding: "8px 12px" }}>
-              Ask the browser to protect this data
-            </button>
-          )}
-
           <div style={{ marginTop: 22 }}>
-            <SectionTitle>Automatic snapshots</SectionTitle>
+            <SectionTitle>Automatic backups</SectionTitle>
             <p style={{ margin: "-6px 0 10px", fontSize: 13, color: T.mute, lineHeight: 1.55 }}>
-              CASH quietly keeps its last few known-good copies in this browser, so a
-              bad edit is recoverable. These live alongside your ledger — they're a
-              safety net, not a substitute for an exported file.
+              CASH keeps timestamped copies of the ledger file on disk, up to 30 of
+              them. Copy the whole CASH folder and you have taken your data with you.
             </p>
             {snaps.length === 0 ? (
               <div style={{ fontSize: 13, color: T.mute, padding: "8px 0" }}>
-                No snapshots yet — the first is taken next time you open the app.
+                No backups yet — the first is written once you have saved something.
               </div>
             ) : snaps.map((s) => (
-              <div key={s.key} style={{
+              <div key={s.name} style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "9px 0",
                 borderTop: `1px solid ${T.line}`, fontSize: 13.5,
               }}>
@@ -136,7 +111,7 @@ export function BackupPanel({ data, onExport, onImportJson, onImportCsv, onResto
                     {" · "}{s.count === null ? `${(s.size / 1024).toFixed(0)} KB` : `${s.count} entries`}
                   </span>
                 </span>
-                <button onClick={() => restore(s.key)}
+                <button onClick={() => restore(s)}
                   style={{ ...ghostBtn, padding: "6px 12px", fontSize: 13 }}>Restore</button>
               </div>
             ))}

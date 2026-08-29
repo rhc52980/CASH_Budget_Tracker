@@ -1,6 +1,10 @@
 // Persistence layer. Deliberately defensive: this is the only copy of the
 // user's ledger, so a bad read must never lead to overwriting good bytes.
 export const STORE_KEY = "budget-book-v1";
+// The ledger now lives in a file the local server owns; STORE_KEY is kept only
+// so a pre-server ledger can be migrated out of browser storage once.
+export const LEDGER_API = "/api/ledger";
+export const MIGRATED_KEY = "cash-migrated-at";
 export const SCHEMA_VERSION = 1;
 
 const SNAP_PREFIX = "cash-snap-";
@@ -34,18 +38,42 @@ export function withDefaults(parsed) {
 }
 
 /**
- * Read the ledger.
+ * Read the ledger from the server's file.
  * Returns { data, ok, raw, reason }. When ok is false the caller MUST NOT
- * write — `raw` still holds whatever was there, and quarantine() can save it.
+ * write - `raw` still holds whatever was there, and quarantine() can save it.
+ * On a very first run it also adopts anything left in browser storage by an
+ * older version, so upgrading does not look like data loss.
  */
-export function loadLedger(store = localStorage) {
-  let raw = null;
+export async function loadLedger(store = localStorage) {
+  let res;
   try {
-    raw = store.getItem(STORE_KEY);
-  } catch (e) {
-    return { data: withDefaults({}), ok: false, raw: null, reason: "unreadable" };
+    res = await fetch(LEDGER_API, { cache: "no-store" });
+  } catch {
+    return { data: withDefaults({}), ok: false, raw: null, reason: "server-unreachable" };
   }
-  if (raw === null || raw === "") return { data: withDefaults({}), ok: true, raw: null };
+  if (!res.ok) return { data: withDefaults({}), ok: false, raw: null, reason: "server-error" };
+
+  const body = await res.json();
+  if (!body.ok) return { data: withDefaults({}), ok: false, raw: null, reason: body.error || "unreadable" };
+
+  let raw = body.raw;
+
+  // Nothing on disk yet: adopt a pre-server ledger if one is sitting in the browser.
+  if (raw === null || raw === "") {
+    let legacy = null;
+    try { legacy = store.getItem(STORE_KEY); } catch { /* ignore */ }
+    if (legacy) {
+      try {
+        if (isPlausibleLedger(JSON.parse(legacy))) {
+          const migrated = withDefaults(JSON.parse(legacy));
+          await saveLedger(migrated);
+          try { store.setItem(MIGRATED_KEY, new Date().toISOString()); } catch { /* ignore */ }
+          return { data: migrated, ok: true, raw: legacy, migrated: true };
+        }
+      } catch { /* fall through to an empty ledger */ }
+    }
+    return { data: withDefaults({}), ok: true, raw: null };
+  }
 
   let parsed;
   try {
@@ -59,102 +87,55 @@ export function loadLedger(store = localStorage) {
   return { data: withDefaults(parsed), ok: true, raw };
 }
 
-/**
- * Write the ledger. If the quota is hit, give up snapshots one at a time to
- * make room — the live ledger always outranks its own backups.
- */
-export function saveLedger(data, store = localStorage) {
-  const payload = JSON.stringify({ ...data, version: SCHEMA_VERSION });
-  let lastErr;
-  for (let attempt = 0; attempt <= MAX_SNAPSHOTS; attempt++) {
-    try {
-      store.setItem(STORE_KEY, payload);
-      return { ok: true };
-    } catch (e) {
-      lastErr = e;
-      if (!dropOldestSnapshot(store)) break;
-    }
-  }
-  return { ok: false, error: lastErr && lastErr.name === "QuotaExceededError" ? "quota" : "blocked" };
-}
-
-/* ---------- rolling local snapshots ---------- */
-
-export function listSnapshots(store = localStorage) {
-  const out = [];
-  for (let i = 0; i < store.length; i++) {
-    const key = store.key(i);
-    if (!key || !key.startsWith(SNAP_PREFIX)) continue;
-    const at = Number(key.slice(SNAP_PREFIX.length));
-    if (!Number.isFinite(at)) continue;
-    let size = 0, count = null;
-    try {
-      const v = store.getItem(key);
-      size = v ? v.length : 0;
-      const parsed = JSON.parse(v);
-      count = Array.isArray(parsed.transactions) ? parsed.transactions.length : null;
-    } catch { /* keep the row; it just shows no entry count */ }
-    out.push({ key, at, size, count });
-  }
-  return out.sort((a, b) => b.at - a.at);
-}
-
-/**
- * Copy the current stored value aside, at most once every few hours, keeping
- * the newest MAX_SNAPSHOTS. Only ever snapshots bytes that parse.
- */
-export function takeSnapshot(store = localStorage, now = Date.now()) {
-  let raw;
+/** Write the ledger through the server. */
+export async function saveLedger(data) {
+  const payload = JSON.stringify({ ...data, version: SCHEMA_VERSION }, null, 2);
   try {
-    raw = store.getItem(STORE_KEY);
-  } catch { return false; }
-  if (!raw) return false;
-  try {
-    if (!isPlausibleLedger(JSON.parse(raw))) return false;
-  } catch { return false; }
-
-  const existing = listSnapshots(store);
-  if (existing.length && now - existing[0].at < MIN_SNAPSHOT_GAP_MS) return false;
-  if (existing.length && store.getItem(existing[0].key) === raw) return false;
-
-  try {
-    store.setItem(SNAP_PREFIX + now, raw);
+    const res = await fetch(LEDGER_API, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: payload,
+    });
+    if (res.ok) return { ok: true };
+    const body = await res.json().catch(() => ({}));
+    return { ok: false, error: body.error || "blocked" };
   } catch {
-    return false;
-  }
-  pruneSnapshots(0, store);
-  return true;
-}
-
-/** Trim to MAX_SNAPSHOTS - extra. Returns how many were removed. */
-export function pruneSnapshots(extra = 0, store = localStorage) {
-  const snaps = listSnapshots(store);
-  const keep = Math.max(0, MAX_SNAPSHOTS - extra);
-  let removed = 0;
-  snaps.slice(keep).forEach((s) => {
-    try { store.removeItem(s.key); removed++; } catch { /* ignore */ }
-  });
-  return removed;
-}
-
-/** Remove the single oldest snapshot. Returns false when there are none. */
-export function dropOldestSnapshot(store = localStorage) {
-  const snaps = listSnapshots(store);
-  if (!snaps.length) return false;
-  try {
-    store.removeItem(snaps[snaps.length - 1].key);
-    return true;
-  } catch {
-    return false;
+    return { ok: false, error: "server-unreachable" };
   }
 }
 
-export function readSnapshot(key, store = localStorage) {
+/* ---------- backups, kept on disk by the server ---------- */
+
+export const BACKUPS_API = "/api/backups";
+
+/** Timestamped copies the server keeps beside the ledger file. */
+export async function listBackups() {
   try {
-    const parsed = JSON.parse(store.getItem(key));
-    return isPlausibleLedger(parsed) ? withDefaults(parsed) : null;
+    const res = await fetch(BACKUPS_API, { cache: "no-store" });
+    if (!res.ok) return { ok: false, backups: [] };
+    const body = await res.json();
+    return body.ok ? { ok: true, backups: body.backups, dir: body.dir } : { ok: false, backups: [] };
   } catch {
-    return null;
+    return { ok: false, backups: [] };
+  }
+}
+
+/** Roll the ledger file back to one of those copies. */
+export async function restoreBackup(name) {
+  try {
+    const res = await fetch(BACKUPS_API, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.ok) return { ok: false, error: body.error || "restore failed" };
+    const parsed = JSON.parse(body.raw);
+    return isPlausibleLedger(parsed)
+      ? { ok: true, data: withDefaults(parsed) }
+      : { ok: false, error: "backup is not a ledger" };
+  } catch {
+    return { ok: false, error: "server-unreachable" };
   }
 }
 

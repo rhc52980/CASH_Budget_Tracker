@@ -27,9 +27,10 @@ if not errorlevel 1 (
 if not exist "node_modules\" goto needsetup
 if not exist "dist\index.html" goto needsetup
 
-REM --strictPort matters: your data is stored per web address, so if CASH ever
-REM started on a different port it would look empty. Better to fail loudly.
-call npm run preview -- --port 4173 --strictPort --open
+REM server.js binds 4173 only and refuses to move: the ledger file is reached
+REM through this address, so a fallback port would look like an empty ledger.
+start "" "http://localhost:4173"
+call node server.js
 if errorlevel 1 goto portbusy
 goto end
 

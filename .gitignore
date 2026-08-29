@@ -39,3 +39,6 @@ desktop.ini
 
 # Written by Update-CASH.bat on every run
 update-log.txt
+
+# Your ledger and its backups. Never commit financial data.
+data/

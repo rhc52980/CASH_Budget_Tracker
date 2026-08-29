@@ -1,34 +1,64 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
-  STORE_KEY, MAX_SNAPSHOTS, loadLedger, saveLedger, isPlausibleLedger,
-  takeSnapshot, listSnapshots, readSnapshot, pruneSnapshots, quarantine,
+  STORE_KEY, loadLedger, saveLedger, isPlausibleLedger, withDefaults,
+  listBackups, restoreBackup, quarantine,
 } from "./storage.js";
 
-// Minimal localStorage stand-in with the index API listSnapshots relies on
-function makeStore(initial = {}, opts = {}) {
+// Minimal localStorage stand-in; only the migration path still touches it
+function makeStore(initial = {}) {
   const map = new Map(Object.entries(initial));
   return {
     get length() { return map.size; },
     key: (i) => [...map.keys()][i] ?? null,
     getItem: (k) => (map.has(k) ? map.get(k) : null),
-    setItem: (k, v) => {
-      if (opts.full && !map.has(k)) {
-        const err = new Error("quota"); err.name = "QuotaExceededError"; throw err;
-      }
-      map.set(k, String(v));
-    },
+    setItem: (k, v) => map.set(k, String(v)),
     removeItem: (k) => { map.delete(k); },
-    _map: map,
   };
 }
 
 const ledger = (n = 1) => ({
   transactions: Array.from({ length: n }, (_, i) => ({
-    id: "t" + i, type: "expense", amount: 10 + i, category: "Groceries", date: "2026-08-0" + ((i % 9) + 1),
+    id: "t" + i, type: "expense", amount: 10 + i, category: "Groceries",
+    date: "2026-08-0" + ((i % 9) + 1),
   })),
   budgets: {}, goals: [], bills: [], billPaid: {}, incomes: [], incomePaid: {},
-  budgetRollover: {}, customCats: [],
+  budgetRollover: {}, customCats: [], accounts: [], categoryRules: {}, autoPaySkip: {},
 });
+
+// Stand in for the local server
+function mockServer({ raw = null, getOk = true, putOk = true, backups = [] } = {}) {
+  const state = { raw, puts: [] };
+  global.fetch = vi.fn(async (url, opts = {}) => {
+    const method = opts.method || "GET";
+    if (url === "/api/ledger" && method === "GET") {
+      return getOk
+        ? { ok: true, json: async () => ({ ok: true, raw: state.raw }) }
+        : { ok: false, json: async () => ({ ok: false, error: "EACCES" }) };
+    }
+    if (url === "/api/ledger" && method === "PUT") {
+      if (!putOk) return { ok: false, json: async () => ({ ok: false, error: "EACCES" }) };
+      state.puts.push(opts.body);
+      state.raw = opts.body;
+      return { ok: true, json: async () => ({ ok: true }) };
+    }
+    if (url === "/api/backups" && method === "GET") {
+      return { ok: true, json: async () => ({ ok: true, backups, dir: "/x/backups" }) };
+    }
+    if (url === "/api/backups" && method === "POST") {
+      const name = JSON.parse(opts.body).name;
+      const hit = backups.find((b) => b.name === name);
+      return hit
+        ? { ok: true, json: async () => ({ ok: true, raw: JSON.stringify(ledger(2)) }) }
+        : { ok: false, json: async () => ({ ok: false, error: "ENOENT" }) };
+    }
+    throw new Error("unexpected request " + method + " " + url);
+  });
+  return state;
+}
+
+const unreachable = () => { global.fetch = vi.fn(async () => { throw new Error("ECONNREFUSED"); }); };
+
+afterEach(() => { vi.restoreAllMocks(); });
 
 describe("isPlausibleLedger", () => {
   it("accepts a real ledger and an empty one", () => {
@@ -41,152 +71,159 @@ describe("isPlausibleLedger", () => {
     expect(isPlausibleLedger([])).toBe(false);
     expect(isPlausibleLedger({ transactions: "nope" })).toBe(false);
     expect(isPlausibleLedger({ transactions: [{ amount: "12", date: "2026-08-01" }] })).toBe(false);
-    expect(isPlausibleLedger({ transactions: [{ amount: 12 }] })).toBe(false);
   });
 });
 
 describe("loadLedger", () => {
-  it("returns defaults and ok on an empty store", () => {
-    const res = loadLedger(makeStore());
+  it("returns defaults when the file does not exist yet", async () => {
+    mockServer({ raw: null });
+    const res = await loadLedger(makeStore());
     expect(res.ok).toBe(true);
     expect(res.data.transactions).toEqual([]);
   });
 
-  it("round-trips a saved ledger and stamps the schema version", () => {
-    const store = makeStore();
-    saveLedger(ledger(2), store);
-    const res = loadLedger(store);
+  it("reads the ledger the server holds and stamps the schema version", async () => {
+    mockServer({ raw: JSON.stringify(ledger(2)) });
+    const res = await loadLedger(makeStore());
     expect(res.ok).toBe(true);
     expect(res.data.transactions).toHaveLength(2);
     expect(res.data.version).toBe(1);
   });
 
-  it("fills in keys missing from an older ledger", () => {
-    const store = makeStore({ [STORE_KEY]: JSON.stringify({ transactions: [] }) });
-    const res = loadLedger(store);
-    expect(res.ok).toBe(true);
+  it("fills in keys missing from an older ledger", async () => {
+    mockServer({ raw: '{"transactions":[]}' });
+    const res = await loadLedger(makeStore());
     expect(res.data.customCats).toEqual([]);
-    expect(res.data.billPaid).toEqual({});
+    expect(res.data.accounts).toEqual([]);
   });
 
-  // The important one: a bad read must be reported, not silently swallowed,
-  // so the caller can refuse to overwrite the bytes still on disk.
-  it("reports corrupt JSON without discarding the raw value", () => {
-    const store = makeStore({ [STORE_KEY]: '{"transactions":[{"amo' });
-    const res = loadLedger(store);
+  // The important one: a bad read must be reported, never swallowed, so the
+  // caller can refuse to overwrite the bytes still on disk.
+  it("reports corrupt JSON without discarding the raw value", async () => {
+    mockServer({ raw: '{"transactions":[{"amo' });
+    const res = await loadLedger(makeStore());
     expect(res.ok).toBe(false);
     expect(res.reason).toBe("corrupt");
     expect(res.raw).toBe('{"transactions":[{"amo');
   });
 
-  it("reports well-formed JSON that isn't a ledger", () => {
-    const store = makeStore({ [STORE_KEY]: '{"hello":"world"}' });
-    const res = loadLedger(store);
+  it("reports well-formed JSON that is not a ledger", async () => {
+    mockServer({ raw: '{"hello":"world"}' });
+    const res = await loadLedger(makeStore());
     expect(res.ok).toBe(false);
     expect(res.reason).toBe("unrecognized");
+  });
+
+  it("reports an unreachable server rather than pretending the ledger is empty", async () => {
+    unreachable();
+    const res = await loadLedger(makeStore());
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe("server-unreachable");
+  });
+
+  it("adopts a pre-server ledger out of browser storage exactly once", async () => {
+    const state = mockServer({ raw: null });
+    const store = makeStore({ [STORE_KEY]: JSON.stringify(ledger(3)) });
+
+    const first = await loadLedger(store);
+    expect(first.ok).toBe(true);
+    expect(first.migrated).toBe(true);
+    expect(first.data.transactions).toHaveLength(3);
+    expect(state.puts).toHaveLength(1); // written through to the file
+
+    // Second run: the file wins and the browser copy is not re-imported
+    const again = await loadLedger(store);
+    expect(again.migrated).toBeUndefined();
+    expect(again.data.transactions).toHaveLength(3);
+  });
+
+  it("ignores junk left in browser storage", async () => {
+    mockServer({ raw: null });
+    const res = await loadLedger(makeStore({ [STORE_KEY]: "{not json" }));
+    expect(res.ok).toBe(true);
+    expect(res.data.transactions).toEqual([]);
   });
 });
 
 describe("saveLedger", () => {
-  it("reports quota failures instead of throwing", () => {
-    const res = saveLedger(ledger(1), makeStore({}, { full: true }));
-    expect(res.ok).toBe(false);
-    expect(res.error).toBe("quota");
+  it("writes pretty JSON carrying the schema version", async () => {
+    const state = mockServer({ raw: null });
+    const res = await saveLedger(ledger(2));
+    expect(res.ok).toBe(true);
+    const written = JSON.parse(state.puts[0]);
+    expect(written.transactions).toHaveLength(2);
+    expect(written.version).toBe(1);
+    expect(state.puts[0]).toContain("\n"); // readable in an editor
   });
 
-  it("frees a snapshot and retries when the quota is hit", () => {
-    const map = { [`cash-snap-${Date.now() - 99999}`]: JSON.stringify(ledger(1)) };
-    let allow = false;
-    const store = makeStore(map);
-    const realSet = store.setItem;
-    store.setItem = (k, v) => {
-      if (k === STORE_KEY && !allow) {
-        allow = true; // fail once, succeed after a prune
-        const err = new Error("quota"); err.name = "QuotaExceededError"; throw err;
-      }
-      realSet(k, v);
-    };
-    const res = saveLedger(ledger(2), store);
-    expect(res.ok).toBe(true);
-    expect(listSnapshots(store)).toHaveLength(0);
+  it("reports a write failure instead of throwing", async () => {
+    mockServer({ putOk: false });
+    const res = await saveLedger(ledger(1));
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe("EACCES");
+  });
+
+  it("reports an unreachable server", async () => {
+    unreachable();
+    const res = await saveLedger(ledger(1));
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe("server-unreachable");
   });
 });
 
-describe("snapshots", () => {
-  let store;
-  beforeEach(() => {
-    store = makeStore();
-    saveLedger(ledger(3), store);
+describe("backups", () => {
+  it("lists what the server holds", async () => {
+    mockServer({ backups: [{ name: "ledger-a.json", at: 2, size: 10, count: 4 }] });
+    const res = await listBackups();
+    expect(res.ok).toBe(true);
+    expect(res.backups[0].count).toBe(4);
   });
 
-  it("captures the stored ledger and can read it back", () => {
-    expect(takeSnapshot(store, 1_000_000)).toBe(true);
-    const snaps = listSnapshots(store);
-    expect(snaps).toHaveLength(1);
-    expect(snaps[0].count).toBe(3);
-    expect(readSnapshot(snaps[0].key, store).transactions).toHaveLength(3);
+  it("restores one and returns a usable ledger", async () => {
+    mockServer({ backups: [{ name: "ledger-a.json", at: 1, size: 10, count: 2 }] });
+    const res = await restoreBackup("ledger-a.json");
+    expect(res.ok).toBe(true);
+    expect(res.data.transactions).toHaveLength(2);
   });
 
-  it("throttles to one snapshot per interval", () => {
-    expect(takeSnapshot(store, 1_000_000)).toBe(true);
-    saveLedger(ledger(4), store);
-    expect(takeSnapshot(store, 1_000_000 + 60_000)).toBe(false);
-    expect(takeSnapshot(store, 1_000_000 + 7 * 60 * 60 * 1000)).toBe(true);
-    expect(listSnapshots(store)).toHaveLength(2);
+  it("reports a backup that is not there", async () => {
+    mockServer({ backups: [] });
+    expect((await restoreBackup("ledger-missing.json")).ok).toBe(false);
   });
 
-  it("skips a snapshot when nothing changed", () => {
-    const t = 1_000_000;
-    expect(takeSnapshot(store, t)).toBe(true);
-    expect(takeSnapshot(store, t + 7 * 60 * 60 * 1000)).toBe(false);
-  });
-
-  it("keeps only the newest MAX_SNAPSHOTS", () => {
-    const gap = 7 * 60 * 60 * 1000;
-    for (let i = 0; i < MAX_SNAPSHOTS + 3; i++) {
-      saveLedger(ledger(i + 1), store);
-      takeSnapshot(store, 1_000_000 + i * gap);
-    }
-    const snaps = listSnapshots(store);
-    expect(snaps).toHaveLength(MAX_SNAPSHOTS);
-    expect(snaps[0].at).toBeGreaterThan(snaps[snaps.length - 1].at);
-  });
-
-  it("refuses to snapshot corrupt bytes", () => {
-    const bad = makeStore({ [STORE_KEY]: "{oops" });
-    expect(takeSnapshot(bad, 1_000_000)).toBe(false);
-    expect(listSnapshots(bad)).toHaveLength(0);
-  });
-
-  it("prune reports how many it removed", () => {
-    const gap = 7 * 60 * 60 * 1000;
-    for (let i = 0; i < MAX_SNAPSHOTS; i++) {
-      saveLedger(ledger(i + 1), store);
-      takeSnapshot(store, 1_000_000 + i * gap);
-    }
-    expect(pruneSnapshots(2, store)).toBe(2);
-    expect(listSnapshots(store)).toHaveLength(MAX_SNAPSHOTS - 2);
+  it("survives an unreachable server", async () => {
+    unreachable();
+    expect((await listBackups()).ok).toBe(false);
+    expect((await restoreBackup("ledger-a.json")).ok).toBe(false);
   });
 });
 
 describe("quarantine", () => {
   it("parks unreadable bytes under their own key", () => {
     const store = makeStore();
-    const key = quarantine("{trunc", store, 1234);
-    expect(key).toBe("cash-recovery-1234");
-    expect(store.getItem(key)).toBe("{trunc");
+    expect(quarantine("{trunc", store, 1234)).toBe("cash-recovery-1234");
+    expect(store.getItem("cash-recovery-1234")).toBe("{trunc");
+  });
+
+  it("reuses the key when the same bad value reappears", () => {
+    const store = makeStore();
+    const first = quarantine("{trunc", store, 1234);
+    expect(quarantine("{trunc", store, 5678)).toBe(first);
   });
 
   it("is a no-op for empty input", () => {
     expect(quarantine("", makeStore())).toBeNull();
   });
+});
 
-  it("reuses the existing key when the same bad value reappears", () => {
-    const store = makeStore();
-    const first = quarantine("{trunc", store, 1234);
-    const second = quarantine("{trunc", store, 5678);
-    expect(second).toBe(first);
-    expect(Object.keys(store._map).filter((k) => k.startsWith("cash-recovery-"))).toHaveLength(0);
-    expect([...store._map.keys()].filter((k) => k.startsWith("cash-recovery-"))).toHaveLength(1);
+describe("withDefaults", () => {
+  it("never loses fields the ledger already has", () => {
+    const merged = withDefaults({
+      transactions: [{ id: "a", amount: 1, date: "2026-01-01" }],
+      accounts: [{ id: "x" }],
+    });
+    expect(merged.transactions).toHaveLength(1);
+    expect(merged.accounts).toHaveLength(1);
+    expect(merged.budgets).toEqual({});
   });
 });

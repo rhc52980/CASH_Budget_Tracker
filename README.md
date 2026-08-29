@@ -94,6 +94,26 @@ CASH uses **port 4173** deliberately — browser storage is keyed to the exact
 address, so running it elsewhere would show an empty ledger. Set `CASH_PORT` if
 you genuinely need a different one, but be aware it is a different ledger.
 
+## Where your data lives
+
+Your ledger is a plain JSON file inside the CASH folder:
+
+```
+<install folder>/data/ledger.json
+```
+
+CASH runs a small local server (`server.js`, bound to 127.0.0.1 only) that owns
+that file — a browser page cannot write to disk on its own. Writes go to a temp
+file and are renamed into place, so a crash mid-save leaves the previous ledger
+intact, and anything that is not valid JSON is refused rather than persisted.
+
+Timestamped copies are kept in `data/backups/`, at most one every six hours and
+up to 30 of them. **Copying the CASH folder now takes your data with it**, and
+clearing your browser no longer affects the ledger.
+
+`data/` is gitignored, so your finances are never committed or included in a
+release archive.
+
 ## Versioning
 
 The version shown in the bottom-right corner of the app comes from

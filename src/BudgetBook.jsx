@@ -4,8 +4,7 @@ import { AppearanceMenu } from "./AppearanceMenu.jsx";
 import { AppCtx } from "./ctx.js";
 import { EXPENSE_CATS, INCOME_CATS, FEEDBACK_URL } from "./constants.js";
 import {
-  DEFAULTS, loadLedger, saveLedger, takeSnapshot, quarantine,
-  requestPersistence, markExported,
+  DEFAULTS, loadLedger, saveLedger, quarantine, markExported,
 } from "./storage.js";
 import {
   fmt, uid, monthKey, todayStr, monthLabel, shiftMonth, dueDateInMonth, computeCarry,
@@ -54,7 +53,7 @@ export default function BudgetBook() {
   const [updateReady, setUpdateReady] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [loadProblem, setLoadProblem] = useState(null);
-  const [persistence, setPersistence] = useState(null);
+  const [migrated, setMigrated] = useState(false);
   const [showBackup, setShowBackup] = useState(false);
   const [undo, setUndo] = useState(null);
 
@@ -112,22 +111,29 @@ export default function BudgetBook() {
   // write anything until the user decides — overwriting them would destroy
   // the only copy of their ledger.
   useEffect(() => {
-    const res = loadLedger();
-    setData(res.data);
-    if (!res.ok) {
-      setLoadProblem({ reason: res.reason, key: quarantine(res.raw) });
-    } else {
-      takeSnapshot();
-      requestPersistence().then(setPersistence);
-    }
-    setLoaded(true);
+    let cancelled = false;
+    (async () => {
+      const res = await loadLedger();
+      if (cancelled) return;
+      setData(res.data);
+      if (!res.ok) {
+        setLoadProblem({ reason: res.reason, key: quarantine(res.raw) });
+      } else if (res.migrated) {
+        setMigrated(true);
+      }
+      setLoaded(true);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Save on change
   useEffect(() => {
     if (!loaded || loadProblem) return;
-    const res = saveLedger(data);
-    setSaveError(res.ok ? null : res.error);
+    let cancelled = false;
+    saveLedger(data).then((res) => {
+      if (!cancelled) setSaveError(res.ok ? null : res.error);
+    });
+    return () => { cancelled = true; };
   }, [data, loaded, loadProblem]);
 
   const chart = CHART[resolvedTheme] || CHART.light;
@@ -551,9 +557,9 @@ export default function BudgetBook() {
         )}
         {saveError && !loadProblem && (
           <Banner tone="danger"
-            text={saveError === "quota"
-              ? "This browser is out of storage space, so your latest changes are not being saved. Export a backup now, then free up space."
-              : "This browser is blocking storage, so your changes are not being saved. Private browsing can cause this. Export a backup to keep your data."}
+            text={saveError === "server-unreachable"
+              ? "CASH cannot reach its own server, so your latest changes are not being saved. Make sure the CASH window or service is still running, then reload."
+              : `Your changes could not be written to the ledger file (${saveError}). Export a backup now so nothing is lost.`}
             actionLabel="Export backup"
             onAction={exportData} />
         )}

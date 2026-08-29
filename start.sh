@@ -21,11 +21,10 @@ if [ ! -d node_modules ] || [ ! -f dist/index.html ]; then
   exit 1
 fi
 
-# --strictPort matters: browser storage is keyed to the exact address, so
-# starting on a different port would present an empty ledger.
+# server.js binds this port only and refuses to move: the ledger file is
+# reached through this address, so a fallback port would look empty.
 mkdir -p "$HERE/logs"
-nohup npm run preview -- --port "$CASH_PORT" --strictPort \
-  >"$HERE/logs/server.log" 2>&1 &
+CASH_PORT="$CASH_PORT" nohup node server.js >"$HERE/logs/server.log" 2>&1 &
 
 for _ in $(seq 1 40); do
   if cash_is_running; then
