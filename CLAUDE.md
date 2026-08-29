@@ -47,7 +47,7 @@ in `localStorage` under the key `budget-book-v1`; there is no backend.
 
 ## Repository
 
-- Remote: https://github.com/rhc52980/CASH_Budget_Tracker (private)
+- Remote: https://github.com/rhc52980/CASH_Budget_Tracker
 - Local `main` tracks `origin/main`.
 
 ## Conventions

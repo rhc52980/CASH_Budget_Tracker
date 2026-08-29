@@ -42,3 +42,6 @@ update-log.txt
 
 # Your ledger and its backups. Never commit financial data.
 data/
+
+# Release archives are built on demand
+release/
