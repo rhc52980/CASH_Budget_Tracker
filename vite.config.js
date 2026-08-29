@@ -45,4 +45,9 @@ export default defineConfig({
   },
   // Relative base so the build works from any folder
   base: "./",
+  test: {
+    // release/ holds a staged copy of the source; without this its duplicated
+    // test files get collected and every count doubles
+    exclude: ["**/node_modules/**", "**/dist/**", "release/**"],
+  },
 });
