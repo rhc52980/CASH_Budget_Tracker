@@ -18,6 +18,9 @@ export function Bills({
   const [category, setCategory] = useState(expenseCats[0]);
   const [dueDay, setDueDay] = useState("1");
   const [autoPay, setAutoPay] = useState(false);
+  const [varies, setVaries] = useState(false);
+  const [payingId, setPayingId] = useState(null);
+  const [payAmount, setPayAmount] = useState("");
   const [isLoan, setIsLoan] = useState(false);
   const [loanBalance, setLoanBalance] = useState("");
   const [loanApr, setLoanApr] = useState("");
@@ -49,11 +52,20 @@ export function Bills({
     // before the bill existed
     addBill({
       id: uid(), name: name.trim(), amount: amt, category, dueDay: day,
-      autoPay, createdAt: todayStr(),
+      autoPay: varies ? false : autoPay, varies, createdAt: todayStr(),
       ...(isLoan ? { loanBalance: bal, loanApr: parseFloat(loanApr) || 0 } : {}),
     });
-    setName(""); setAmount(""); setDueDay("1"); setAutoPay(false);
+    setName(""); setAmount(""); setDueDay("1"); setAutoPay(false); setVaries(false);
     setIsLoan(false); setLoanBalance(""); setLoanApr(""); setErr("");
+  };
+
+  // A variable bill records what you were actually charged; the stored amount
+  // stays as the typical figure used for budgeting.
+  const confirmPay = (bill) => {
+    const amt = parseFloat(payAmount);
+    if (!amt || amt <= 0) return;
+    markPaid(bill, amt);
+    setPayingId(null);
   };
 
   const sorted = [...bills].sort((a, b) => a.dueDay - b.dueDay);
@@ -93,13 +105,29 @@ export function Bills({
           display: "inline-flex", alignItems: "center", gap: 8, marginTop: 12,
           fontSize: 13.5, color: T.ink, cursor: "pointer", userSelect: "none",
         }}>
-          <input type="checkbox" checked={autoPay} onChange={(e) => setAutoPay(e.target.checked)}
+          <input type="checkbox" checked={autoPay} disabled={varies}
+            onChange={(e) => setAutoPay(e.target.checked)}
             style={{ accentColor: "var(--accent)" }} />
           <span>
             Auto-pay
             <span style={{ color: T.mute }}>
               {" "}— pays itself on the due day, no checking off. Best for fixed
               amounts like rent or a car loan.
+            </span>
+          </span>
+        </label>
+        <label style={{
+          display: "flex", alignItems: "center", gap: 8, marginTop: 8,
+          fontSize: 13.5, color: T.ink, cursor: "pointer", userSelect: "none",
+        }}>
+          <input type="checkbox" checked={varies}
+            onChange={(e) => { setVaries(e.target.checked); if (e.target.checked) setAutoPay(false); }}
+            style={{ accentColor: "var(--accent)" }} />
+          <span>
+            Amount varies
+            <span style={{ color: T.mute }}>
+              {" "}— for water, electric, phone. CASH asks what you were actually
+              charged when you mark it paid, and treats the amount above as typical.
             </span>
           </span>
         </label>
@@ -167,6 +195,13 @@ export function Bills({
                     display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap",
                   }}>
                     {b.name}
+                    {b.varies && (
+                      <span title="Amount varies - CASH asks what you were charged" style={{
+                        fontSize: 10.5, fontWeight: 600, letterSpacing: "0.04em",
+                        padding: "1px 7px", borderRadius: 99, textDecoration: "none",
+                        background: "transparent", color: T.mute, border: `1px solid ${T.line}`,
+                      }}>VARIES</span>
+                    )}
                     {b.autoPay && (
                       <span title="Pays itself on the due day" style={{
                         fontSize: 10.5, fontWeight: 600, letterSpacing: "0.04em",
@@ -176,7 +211,7 @@ export function Bills({
                     )}
                   </div>
                   <div style={{ fontSize: 12, color: overdue ? T.neg : T.mute }}>
-                    {b.category} · due the {ordinal(b.dueDay)}
+                    {b.category} · {b.varies ? "typically " : ""}{fmt(b.amount)} · due the {ordinal(b.dueDay)}
                     {overdue && " — overdue"}
                     {b.autoPay && !paid && !overdue && " — will pay itself"}
                   </div>
@@ -184,13 +219,34 @@ export function Bills({
                 <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600, minWidth: 80, textAlign: "right" }}>
                   {fmt(b.amount)}
                 </span>
-                <button onClick={() => (paid ? unmarkPaid(b) : markPaid(b))}
-                  title={b.autoPay && paid ? "Paid automatically — click to undo for this month" : undefined}
-                  style={paid
-                    ? { ...btn(T.paper, T.pos), border: `1px solid ${T.line}` }
-                    : btn(T.pos)}>
-                  {paid ? "Paid ✓" : "Mark paid"}
-                </button>
+                {payingId === b.id ? (
+                  <>
+                    <input type="number" min="0" step="0.01" autoFocus value={payAmount}
+                      aria-label={`Amount charged for ${b.name}`}
+                      onChange={(e) => setPayAmount(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") confirmPay(b);
+                        if (e.key === "Escape") setPayingId(null);
+                      }}
+                      style={{ ...inputStyle, width: 100 }} />
+                    <button onClick={() => confirmPay(b)} style={btn(T.pos)}>Log it</button>
+                    <button onClick={() => setPayingId(null)}
+                      style={{ ...btn("transparent", T.mute), padding: "8px 10px" }}>Cancel</button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (paid) return unmarkPaid(b);
+                      if (b.varies) { setPayingId(b.id); setPayAmount(String(b.amount)); return; }
+                      markPaid(b);
+                    }}
+                    title={b.autoPay && paid ? "Paid automatically — click to undo for this month" : undefined}
+                    style={paid
+                      ? { ...btn(T.paper, T.pos), border: `1px solid ${T.line}` }
+                      : btn(T.pos)}>
+                    {paid ? "Paid ✓" : b.varies ? "Mark paid…" : "Mark paid"}
+                  </button>
+                )}
                 <button onClick={() => setEditId(b.id)} aria-label={`Edit ${b.name} bill`}
                   style={{ ...btn("transparent", T.mute), padding: "4px 6px", fontSize: 14 }}>✎</button>
                 <button onClick={() => deleteBill(b.id)} aria-label={`Delete ${b.name} bill`}
@@ -266,6 +322,7 @@ function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel, s
   const [category, setCategory] = useState(item.category);
   const [day, setDay] = useState(String(item[dayField]));
   const [autoPay, setAutoPay] = useState(Boolean(item.autoPay));
+  const [varies, setVaries] = useState(Boolean(item.varies));
   const [bal, setBal] = useState(item.loanBalance ? String(item.loanBalance) : "");
   const [apr, setApr] = useState(item.loanApr ? String(item.loanApr) : "");
 
@@ -275,7 +332,8 @@ function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel, s
     if (!name.trim() || !amt || amt <= 0 || !d || d < 1 || d > 31) return;
     const patch = { name: name.trim(), amount: amt, category, [dayField]: d };
     if (showAutoPay) {
-      patch.autoPay = autoPay;
+      patch.varies = varies;
+      patch.autoPay = varies ? false : autoPay;
       const b = parseFloat(bal);
       patch.loanBalance = b > 0 ? b : undefined;
       patch.loanApr = b > 0 ? (parseFloat(apr) || 0) : undefined;
@@ -301,9 +359,21 @@ function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel, s
           display: "inline-flex", alignItems: "center", gap: 6,
           fontSize: 13, color: T.mute, cursor: "pointer", userSelect: "none",
         }}>
-          <input type="checkbox" checked={autoPay} onChange={(e) => setAutoPay(e.target.checked)}
+          <input type="checkbox" checked={autoPay} disabled={varies}
+            onChange={(e) => setAutoPay(e.target.checked)}
             style={{ accentColor: "var(--accent)" }} />
           auto-pay
+        </label>
+      )}
+      {showAutoPay && (
+        <label style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          fontSize: 13, color: T.mute, cursor: "pointer", userSelect: "none",
+        }}>
+          <input type="checkbox" checked={varies}
+            onChange={(e) => { setVaries(e.target.checked); if (e.target.checked) setAutoPay(false); }}
+            style={{ accentColor: "var(--accent)" }} />
+          varies
         </label>
       )}
       {showAutoPay && (

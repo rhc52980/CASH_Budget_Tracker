@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   monthKey, monthDiff, shiftMonth, dueDateInMonth, ordinal, kFmt, computeCarry,
   loanRemaining, loanPaymentsLeft, accountBalance, netWorth, clearedBalance,
+  isAutoPayDue,
 } from "./utils.js";
 
 describe("date helpers", () => {
@@ -122,6 +123,53 @@ describe("reconciliation", () => {
   it("exposes the gap against a statement balance", () => {
     // bank says 3800, we have cleared 3800 -> reconciled
     expect(3800 - clearedBalance("chk", 1000, tx)).toBe(0);
+  });
+});
+
+
+describe("isAutoPayDue", () => {
+  const base = { id: "b1", autoPay: true, dueDay: 3, createdAt: "2026-01-01" };
+  const ctx = (over = {}) => ({
+    month: "2026-08", today: "2026-08-10",
+    paidTxId: undefined, liveTxIds: new Set(), skipped: false, ...over,
+  });
+
+  it("fires once the due day has passed", () => {
+    expect(isAutoPayDue(base, ctx())).toBe(true);
+  });
+
+  it("waits until the due day arrives", () => {
+    expect(isAutoPayDue(base, ctx({ today: "2026-08-02" }))).toBe(false);
+  });
+
+  it("never touches a future month", () => {
+    expect(isAutoPayDue(base, ctx({ month: "2026-09" }))).toBe(false);
+  });
+
+  it("never backfills months before the bill existed", () => {
+    expect(isAutoPayDue({ ...base, createdAt: "2026-08-01" }, ctx({ month: "2026-07" }))).toBe(false);
+  });
+
+  it("does not re-apply a payment the user undid", () => {
+    expect(isAutoPayDue(base, ctx({ skipped: true }))).toBe(false);
+  });
+
+  it("does not double-pay when the transaction still exists", () => {
+    expect(isAutoPayDue(base, ctx({ paidTxId: "t1", liveTxIds: new Set(["t1"]) }))).toBe(false);
+  });
+
+  it("pays again if that transaction was deleted from the ledger", () => {
+    expect(isAutoPayDue(base, ctx({ paidTxId: "t1", liveTxIds: new Set() }))).toBe(true);
+  });
+
+  it("ignores bills that are not on auto-pay", () => {
+    expect(isAutoPayDue({ ...base, autoPay: false }, ctx())).toBe(false);
+  });
+
+  // The stored amount is only a typical figure, so auto-paying it would log
+  // a number the user was never charged.
+  it("never auto-pays a bill whose amount varies", () => {
+    expect(isAutoPayDue({ ...base, varies: true }, ctx())).toBe(false);
   });
 });
 

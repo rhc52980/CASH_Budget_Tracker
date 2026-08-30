@@ -8,6 +8,7 @@ import {
 } from "./storage.js";
 import {
   fmt, uid, monthKey, todayStr, monthLabel, shiftMonth, dueDateInMonth, computeCarry,
+  isAutoPayDue,
 } from "./utils.js";
 import { buildCsvPreview, merchantKey } from "./csv.js";
 import { btn, ghostBtn, pill, numeral, useCountUp } from "./ui.jsx";
@@ -150,13 +151,9 @@ export default function BudgetBook() {
     const paid = data.billPaid[month] || {};
     const liveTx = new Set(data.transactions.map((t) => t.id));
 
-    const due = data.bills.filter((b) => {
-      if (!b.autoPay || skipped[b.id]) return false;
-      if (paid[b.id] && liveTx.has(paid[b.id])) return false;
-      const startYm = b.createdAt ? monthKey(b.createdAt) : nowYm;
-      if (month < startYm) return false;
-      return dueDateInMonth(month, b.dueDay) <= today;
-    });
+    const due = data.bills.filter((b) => isAutoPayDue(b, {
+      month, today, paidTxId: paid[b.id], liveTxIds: liveTx, skipped: skipped[b.id],
+    }));
     if (!due.length) return;
 
     setData((d) => {
@@ -325,9 +322,9 @@ export default function BudgetBook() {
     return { ...d, bills: d.bills.filter((b) => b.id !== id), billPaid };
   }); };
   // Paying a bill writes a real expense transaction, so it flows into totals and budgets
-  const markBillPaid = (bill) => setData((d) => {
+  const markBillPaid = (bill, actualAmount) => setData((d) => {
     const tx = {
-      id: uid(), type: "expense", amount: bill.amount, category: bill.category,
+      id: uid(), type: "expense", amount: actualAmount ?? bill.amount, category: bill.category,
       date: dueDateInMonth(month, bill.dueDay), note: bill.name, billId: bill.id,
     };
     const skipMonth = { ...(d.autoPaySkip[month] || {}) };

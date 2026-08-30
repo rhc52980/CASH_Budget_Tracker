@@ -98,6 +98,25 @@ export function loanPaymentsLeft(balance, apr, payment) {
   return Math.ceil(-Math.log(1 - (balance * r) / payment) / Math.log(1 + r));
 }
 
+
+/**
+ * Should this bill be logged automatically for `month` yet?
+ * Pulled out of the effect so the rule can be tested: auto-pay writes money
+ * into the ledger without being asked, so getting this wrong is expensive.
+ * A bill whose amount varies never qualifies - the stored figure is only a
+ * typical value, not what was actually charged.
+ */
+export function isAutoPayDue(bill, { month, today, paidTxId, liveTxIds, skipped }) {
+  if (!bill.autoPay || bill.varies) return false;
+  if (skipped) return false;
+  if (paidTxId && liveTxIds.has(paidTxId)) return false;
+  const nowYm = monthKey(today);
+  if (month > nowYm) return false;                       // never the future
+  const startYm = bill.createdAt ? monthKey(bill.createdAt) : nowYm;
+  if (month < startYm) return false;                     // never before it existed
+  return dueDateInMonth(month, bill.dueDay) <= today;
+}
+
 export const kFmt = (v) => {
   const a = Math.abs(v);
   return (v < 0 ? "−" : "") + (a >= 1000 ? `$${(a / 1000).toFixed(1)}k` : `$${a}`);
