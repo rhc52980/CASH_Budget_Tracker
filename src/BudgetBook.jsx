@@ -22,6 +22,7 @@ import { YearTab } from "./YearTab.jsx";
 import { AccountsTab } from "./AccountsTab.jsx";
 import { CsvImportModal } from "./CsvImportModal.jsx";
 import { BackupPanel } from "./BackupPanel.jsx";
+import { MoreMenu, MORE_SECTIONS, SectionHeader } from "./MoreTab.jsx";
 import logoUrl from "./assets/logo.png";
 import { APP_VERSION } from "./version.js";
 
@@ -469,15 +470,19 @@ export default function BudgetBook() {
     );
   }
 
+  // Four destinations rather than seven. Accounts, budgets, goals, and the
+  // year view are occasional errands, so they sit behind More and stay out of
+  // the daily loop.
   const tabs = [
     ["overview", "Overview"],
-    ["accounts", "Accounts"],
     ["bills", "Bills"],
-    ["budgets", "Budgets"],
-    ["goals", "Goals"],
     ["transactions", "Transactions"],
-    ["year", "Year"],
+    ["more", "More"],
   ];
+  const moreSection = MORE_SECTIONS.find(([id]) => id === tab);
+  // More stays lit while you are inside one of its sections, so the nav never
+  // shows nothing selected.
+  const navActive = (id) => id === tab || (id === "more" && !!moreSection);
 
   const ctxValue = { dark, chart, expenseCats, allCats, catColor, accounts: data.accounts };
   const iconBtn = {
@@ -584,7 +589,7 @@ export default function BudgetBook() {
               border: `1px solid ${T.line}`, borderRadius: 10, padding: 3,
             }}>
               {tabs.map(([id, label]) => (
-                <button key={id} onClick={() => setTab(id)} style={pill(tab === id)}>{label}</button>
+                <button key={id} onClick={() => setTab(id)} style={pill(navActive(id))}>{label}</button>
               ))}
             </div>
           )}
@@ -604,6 +609,9 @@ export default function BudgetBook() {
         </div>
 
         {showAdd && <AddEntry onAdd={(txs) => { addTxs(txs); setShowAdd(false); }} />}
+
+        {tab === "more" && <MoreMenu onPick={setTab} />}
+        {moreSection && <SectionHeader title={moreSection[1]} onBack={() => setTab("more")} />}
 
         {tab === "overview" && (
           <Overview spentByCat={spentByCat}
@@ -677,9 +685,9 @@ export default function BudgetBook() {
               <button key={id} onClick={() => setTab(id)} style={{
                 flex: 1, padding: "12px 0 13px", border: "none", cursor: "pointer",
                 background: "transparent", fontFamily: T.sans, fontSize: 11,
-                fontWeight: tab === id ? 650 : 500, letterSpacing: "-0.01em",
-                color: tab === id ? T.ink : T.mute,
-                borderTop: `2px solid ${tab === id ? T.brass : "transparent"}`,
+                fontWeight: navActive(id) ? 650 : 500, letterSpacing: "-0.01em",
+                color: navActive(id) ? T.ink : T.mute,
+                borderTop: `2px solid ${navActive(id) ? T.brass : "transparent"}`,
                 marginTop: -1,
               }}>{label}</button>
             ))}
@@ -728,7 +736,7 @@ export default function BudgetBook() {
       )}
 
       {showBackup && (
-        <BackupPanel data={data} persistence={persistence}
+        <BackupPanel data={data}
           onExport={exportData}
           onImportJson={(f) => { importData(f); setShowBackup(false); }}
           onImportCsv={(f) => { importCsv(f); setShowBackup(false); }}

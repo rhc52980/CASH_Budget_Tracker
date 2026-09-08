@@ -23,6 +23,18 @@ export const pill = (active) => ({
   boxShadow: active ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
 });
 
+// A tappable choice. On a phone a <select> opens a modal wheel, so anything
+// with a handful of options is a row of these instead.
+export const chip = (active) => ({
+  display: "inline-flex", alignItems: "center", gap: 6,
+  padding: "7px 12px", borderRadius: 99, cursor: "pointer",
+  fontFamily: T.sans, fontSize: 13, letterSpacing: "-0.01em",
+  fontWeight: active ? 600 : 500,
+  border: `1px solid ${active ? T.ink : T.line}`,
+  background: active ? T.ink : "transparent",
+  color: active ? T.card : T.ink,
+});
+
 export const inputStyle = {
   width: "100%", padding: "10px 12px", borderRadius: 10, boxSizing: "border-box",
   border: `1px solid ${T.line}`, background: T.inputBg, color: T.ink,

@@ -117,6 +117,28 @@ export function isAutoPayDue(bill, { month, today, paidTxId, liveTxIds, skipped 
   return dueDateInMonth(month, bill.dueDay) <= today;
 }
 
+/**
+ * Label for the date chip on the entry form. Nearly every entry is for today
+ * or yesterday, so those read as words; anything else shows the date, and the
+ * year appears only when it is not the current one.
+ */
+export function dateChipLabel(date, today = todayStr()) {
+  if (!date) return "Pick a date";
+  if (date === today) return "Today";
+  const [ty, tm, td] = today.split("-").map(Number);
+  // Day 0 of a month rolls back into the previous one, so this is safe across
+  // month and year boundaries.
+  const prev = new Date(ty, tm - 1, td - 1);
+  const pad = (n) => String(n).padStart(2, "0");
+  if (date === `${prev.getFullYear()}-${pad(prev.getMonth() + 1)}-${pad(prev.getDate())}`) {
+    return "Yesterday";
+  }
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", y === ty
+    ? { month: "short", day: "numeric" }
+    : { month: "short", day: "numeric", year: "numeric" });
+}
+
 export const kFmt = (v) => {
   const a = Math.abs(v);
   return (v < 0 ? "−" : "") + (a >= 1000 ? `$${(a / 1000).toFixed(1)}k` : `$${a}`);

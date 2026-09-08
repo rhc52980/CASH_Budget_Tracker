@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   monthKey, monthDiff, shiftMonth, dueDateInMonth, ordinal, kFmt, computeCarry,
   loanRemaining, loanPaymentsLeft, accountBalance, netWorth, clearedBalance,
-  isAutoPayDue,
+  isAutoPayDue, dateChipLabel,
 } from "./utils.js";
 
 describe("date helpers", () => {
@@ -46,6 +46,29 @@ describe("formatting", () => {
     expect(kFmt(1500)).toBe("$1.5k");
     expect(kFmt(-2200)).toBe("−$2.2k");
     expect(kFmt(0)).toBe("$0");
+  });
+});
+
+describe("dateChipLabel", () => {
+  const today = "2026-09-08";
+
+  it("names today and yesterday instead of dating them", () => {
+    expect(dateChipLabel("2026-09-08", today)).toBe("Today");
+    expect(dateChipLabel("2026-09-07", today)).toBe("Yesterday");
+  });
+
+  it("rolls yesterday back over a month and a year boundary", () => {
+    expect(dateChipLabel("2026-08-31", "2026-09-01")).toBe("Yesterday");
+    expect(dateChipLabel("2025-12-31", "2026-01-01")).toBe("Yesterday");
+  });
+
+  it("drops the year while it is the current one, and keeps it otherwise", () => {
+    expect(dateChipLabel("2026-03-04", today)).toBe("Mar 4");
+    expect(dateChipLabel("2025-03-04", today)).toBe("Mar 4, 2025");
+  });
+
+  it("says what to do when there is no date at all", () => {
+    expect(dateChipLabel("", today)).toBe("Pick a date");
   });
 });
 

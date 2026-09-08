@@ -163,3 +163,18 @@ select:focus {
     transition: none !important;
   }
 }
+
+/* The amount field reads as a number, not a box: no frame, no focus ring, and
+   no spinner arrows to fight with on desktop. */
+.amount-field:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+.amount-field::-webkit-outer-spin-button,
+.amount-field::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.amount-field[type="number"] {
+  -moz-appearance: textfield;
+}
