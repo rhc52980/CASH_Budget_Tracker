@@ -130,7 +130,7 @@ npm run preview  # serve the production build on :4173
 ```
 
 Built with React + Vite; charts by Recharts. CASH is not hosted — pushes to
-`main` only run the tests and build. See `CLAUDE.md` for architecture notes.
+`main` only run the tests and build. See `ARCHITECTURE.md` for architecture notes.
 
 ## Features
 

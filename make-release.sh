@@ -11,8 +11,10 @@ rm -rf "$STAGE" "$OUT/CASH-v$VER.zip" "$OUT/CASH-v$VER-linux.tar.gz"
 mkdir -p "$STAGE"
 
 # Everything that is rebuilt, personal, or machine-local stays out. data/ is
-# the important one: it holds the ledger and its backups.
+# the important one: it holds the ledger and its backups. ARCHITECTURE.md is
+# developer notes, not something a download needs.
 tar --exclude=./node_modules \
+    --exclude=./ARCHITECTURE.md \
     --exclude=./dist \
     --exclude=./.git \
     --exclude=./.vite \
@@ -31,6 +33,7 @@ fail() { echo "RELEASE ABORTED: $1" >&2; exit 1; }
 [ -e "$STAGE/data" ]           && fail "data/ made it into the staging folder"
 [ -e "$STAGE/logs" ]           && fail "logs/ made it into the staging folder"
 [ -e "$STAGE/update-log.txt" ] && fail "update-log.txt made it into the staging folder"
+[ -e "$STAGE/ARCHITECTURE.md" ] && fail "ARCHITECTURE.md made it into the staging folder"
 
 if find "$STAGE" -name 'ledger*.json' -o -name '*ledger*.json' | grep -q .; then
   fail "a ledger file is in the staging folder"
@@ -64,5 +67,5 @@ fi
 
 echo
 echo "built in $OUT:"
-ls -1sh "$OUT"/CASH-v$VER* | sed 's/^/  /'
+ls -1shd "$OUT"/CASH-v$VER* | sed 's/^/  /'
 echo "  files staged: $(find "$STAGE" -type f | wc -l)"
