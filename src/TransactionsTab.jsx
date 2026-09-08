@@ -5,7 +5,7 @@ import { INCOME_CATS } from "./constants.js";
 import { fmt } from "./utils.js";
 import { Card, SectionTitle, Empty, btn, inputStyle } from "./ui.jsx";
 
-export function Transactions({ monthTx, deleteTx, updateTx }) {
+export function Transactions({ monthTx, deleteTx, updateTx, onAddEntry }) {
   const { allCats } = useApp();
   const [q, setQ] = useState("");
   const [ftype, setFtype] = useState("all");
@@ -45,11 +45,18 @@ export function Transactions({ monthTx, deleteTx, updateTx }) {
           {allCats.map((c) => <option key={c}>{c}</option>)}
         </select>
       </div>
-      {list.length === 0
-        ? <Empty text={monthTx.length === 0
-            ? "No entries for this month. Switch months with the arrows above, or add one."
-            : "Nothing matches those filters."} />
-        : <TxList list={list} onDelete={deleteTx} onEdit={updateTx} />}
+      {list.length === 0 ? (
+        monthTx.length === 0 ? (
+          <Empty text="No entries for this month. Switch months with the arrows above, or add one."
+            actionLabel="Add an entry" onAction={onAddEntry} />
+        ) : (
+          // Only filters can empty a month that has entries in it, so the way
+          // out is to drop them rather than to add anything.
+          <Empty text="Nothing matches those filters."
+            actionLabel="Clear filters"
+            onAction={() => { setQ(""); setFtype("all"); setFcat("all"); }} />
+        )
+      ) : <TxList list={list} onDelete={deleteTx} onEdit={updateTx} />}
     </Card>
   );
 }

@@ -69,6 +69,11 @@ export default function BudgetBook() {
     setUndo({ label, snapshot: dataRef.current, at: Date.now() });
   }, []);
 
+  const openAdd = useCallback(() => {
+    setShowAdd(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
   useEffect(() => {
     if (!undo) return;
     const id = setTimeout(() => setUndo(null), 9000);
@@ -618,7 +623,8 @@ export default function BudgetBook() {
             trendRows={trendRows} trendCats={trendCats}
             trendKind={trendKind} setTrendKind={setTrendKind}
             trendRange={trendRange} setTrendRange={setTrendRange}
-            monthTx={monthTx} expenses={expenses} insights={insights} />
+            monthTx={monthTx} expenses={expenses} insights={insights}
+            onAddEntry={openAdd} />
         )}
         {tab === "accounts" && (
           <AccountsTab accounts={data.accounts} transactions={data.transactions}
@@ -643,10 +649,11 @@ export default function BudgetBook() {
           <Goals goals={data.goals} addGoal={addGoal} fundGoal={fundGoal} deleteGoal={deleteGoal} />
         )}
         {tab === "transactions" && (
-          <Transactions monthTx={monthTx} deleteTx={deleteTx} updateTx={updateTx} />
+          <Transactions monthTx={monthTx} deleteTx={deleteTx} updateTx={updateTx}
+            onAddEntry={openAdd} />
         )}
         {tab === "year" && (
-          <YearTab transactions={data.transactions} month={month} />
+          <YearTab transactions={data.transactions} month={month} onAddEntry={openAdd} />
         )}
 
         <footer style={{

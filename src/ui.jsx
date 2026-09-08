@@ -96,13 +96,21 @@ export function ProgressBar({ ratio, over }) {
   );
 }
 
-export function Empty({ text, card }) {
+// An empty state should say what to do and let you do it. Without an action
+// it is a dead end, which is how a fresh ledger ended up with no accounts and
+// no budgets: nothing on the page led anywhere.
+export function Empty({ text, card, actionLabel, onAction }) {
   const inner = (
     <div style={{
       color: T.mute, fontSize: 14, padding: "28px 16px", textAlign: "center",
       lineHeight: 1.55, maxWidth: 380, margin: "0 auto",
     }}>
       {text}
+      {actionLabel && onAction && (
+        <div style={{ marginTop: 16 }}>
+          <button onClick={onAction} style={btn(T.brass)}>{actionLabel}</button>
+        </div>
+      )}
     </div>
   );
   return card ? <Card>{inner}</Card> : inner;

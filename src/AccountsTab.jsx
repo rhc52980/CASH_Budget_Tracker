@@ -73,7 +73,10 @@ export function AccountsTab({
       </Card>
 
       {accounts.length === 0 ? (
-        <Empty card text="No accounts yet. Add your checking account, savings, and any credit cards to see what you actually have — not just what you spent." />
+        <Empty card
+          text="No accounts yet. Add your checking account, savings, and any credit cards to see what you actually have — not just what you spent."
+          actionLabel="Add your first account"
+          onAction={() => { setShowAdd(true); setShowTransfer(false); }} />
       ) : (
         <>
           {[["Accounts", assets], ["Owed", debts]].map(([heading, list]) =>

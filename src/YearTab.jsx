@@ -7,7 +7,7 @@ import { useApp } from "./ctx.js";
 import { fmt, kFmt, monthKey, monthLabel } from "./utils.js";
 import { Card, SectionTitle, Empty, tooltipStyle, numeral } from "./ui.jsx";
 
-export function YearTab({ transactions, month }) {
+export function YearTab({ transactions, month, onAddEntry }) {
   const { chart: C, catColor } = useApp();
   const year = month.slice(0, 4);
 
@@ -47,7 +47,8 @@ export function YearTab({ transactions, month }) {
   if (active.length === 0) {
     return (
       <div style={{ marginTop: 14 }}>
-        <Empty text={`Nothing recorded in ${year} yet. Entries you add will build the year's story here.`} card />
+        <Empty card text={`Nothing recorded in ${year} yet. Entries you add will build the year's story here.`}
+          actionLabel="Add an entry" onAction={onAddEntry} />
       </div>
     );
   }

@@ -10,7 +10,7 @@ import { TxList } from "./TransactionsTab.jsx";
 
 export function Overview({
   spentByCat, trendRows, trendCats, trendKind, setTrendKind,
-  trendRange, setTrendRange, monthTx, expenses, insights,
+  trendRange, setTrendRange, monthTx, expenses, insights, onAddEntry,
 }) {
   const { chart: C, catColor } = useApp();
   const pieData = Object.entries(spentByCat)
@@ -31,7 +31,8 @@ export function Overview({
       <Card>
         <SectionTitle>Where the money went</SectionTitle>
         {pieData.length === 0 ? (
-          <Empty text="No spending recorded this month yet. Add an expense to see the breakdown." />
+          <Empty text="No spending recorded this month yet. Add an expense to see the breakdown."
+            actionLabel="Add an expense" onAction={onAddEntry} />
         ) : (
           <>
             <div style={{ height: 210 }}>
@@ -136,7 +137,8 @@ export function Overview({
       <Card style={{ gridColumn: "1 / -1" }}>
         <SectionTitle>Recent entries</SectionTitle>
         {recent.length === 0
-          ? <Empty text="Nothing recorded this month yet. Add your first entry to get started." />
+          ? <Empty text="Nothing recorded this month yet. Add your first entry to get started."
+              actionLabel="Add an entry" onAction={onAddEntry} />
           : <TxList list={recent} />}
       </Card>
     </div>
