@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { T } from "./theme.js";
 import { fmt, uid } from "./utils.js";
-import { Card, SectionTitle, Empty, ProgressBar, btn, inputStyle } from "./ui.jsx";
+import { Card, SectionTitle, Empty, ProgressBar, btn, focusField, inputStyle } from "./ui.jsx";
 
 export function Goals({ goals, addGoal, fundGoal, deleteGoal }) {
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [err, setErr] = useState("");
   const [fundAmts, setFundAmts] = useState({});
+  const nameRef = useRef(null);
 
   const create = () => {
     const t = parseFloat(target);
@@ -22,7 +23,7 @@ export function Goals({ goals, addGoal, fundGoal, deleteGoal }) {
       <Card>
         <SectionTitle>Start a savings goal</SectionTitle>
         <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
-          <input value={name} placeholder="Goal name — e.g. Emergency fund"
+          <input ref={nameRef} value={name} placeholder="Goal name — e.g. Emergency fund"
             onChange={(e) => { setName(e.target.value); setErr(""); }} style={inputStyle} />
           <input type="number" min="0" step="50" value={target} placeholder="Target amount"
             onChange={(e) => { setTarget(e.target.value); setErr(""); }} style={inputStyle} />
@@ -31,7 +32,10 @@ export function Goals({ goals, addGoal, fundGoal, deleteGoal }) {
         {err && <div style={{ color: T.neg, fontSize: 13, marginTop: 8 }}>{err}</div>}
       </Card>
 
-      {goals.length === 0 && <Empty text="No goals yet. A goal turns leftover money into progress you can see." card />}
+      {goals.length === 0 && (
+        <Empty card text="No goals yet. A goal turns leftover money into progress you can see."
+          actionLabel="Start a goal" onAction={() => focusField(nameRef)} />
+      )}
 
       {goals.map((g) => {
         const ratio = g.target ? g.saved / g.target : 0;

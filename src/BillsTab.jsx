@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { T } from "./theme.js";
 import { useApp } from "./ctx.js";
 import { INCOME_CATS, BILL_PRESETS } from "./constants.js";
@@ -6,7 +6,7 @@ import {
   fmt, uid, ordinal, monthLabel, dueDateInMonth, todayStr, shiftMonth,
   loanRemaining, loanPaymentsLeft,
 } from "./utils.js";
-import { Card, SectionTitle, Empty, ProgressBar, btn, inputStyle } from "./ui.jsx";
+import { Card, SectionTitle, Empty, ProgressBar, btn, focusField, inputStyle } from "./ui.jsx";
 
 export function Bills({
   bills, month, paidMap, transactions, addBill, deleteBill, updateBill, markPaid, unmarkPaid,
@@ -68,6 +68,7 @@ export function Bills({
     setPayingId(null);
   };
 
+  const nameRef = useRef(null);
   const sorted = [...bills].sort((a, b) => a.dueDay - b.dueDay);
   const total = sorted.reduce((s, b) => s + b.amount, 0);
   const paidTotal = sorted.filter(isPaid).reduce((s, b) => s + b.amount, 0);
@@ -90,7 +91,7 @@ export function Bills({
           ))}
         </div>
         <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
-          <input value={name} placeholder="Bill name — pick above or type"
+          <input ref={nameRef} value={name} placeholder="Bill name — pick above or type"
             onChange={(e) => { setName(e.target.value); setErr(""); }} style={inputStyle} />
           <input type="number" min="0" step="0.01" value={amount} placeholder="Amount"
             onChange={(e) => { setAmount(e.target.value); setErr(""); }} style={inputStyle} />
@@ -162,7 +163,9 @@ export function Bills({
       </Card>
 
       {sorted.length === 0 ? (
-        <Empty text="No bills yet. Add your recurring bills — rent, utilities, subscriptions — and check them off each month." card />
+        <Empty card
+          text="No bills yet. Add your recurring bills — rent, utilities, subscriptions — and check them off each month."
+          actionLabel="Add your first bill" onAction={() => focusField(nameRef)} />
       ) : (
         <Card>
           <SectionTitle right={
@@ -413,6 +416,7 @@ function IncomeSection({ incomes, month, paidMap, transactions, addIncome, delet
     setName(""); setAmount(""); setPayDay("1"); setErr("");
   };
 
+  const nameRef = useRef(null);
   const sorted = [...incomes].sort((a, b) => a.payDay - b.payDay);
   const total = sorted.reduce((s, x) => s + x.amount, 0);
   const receivedTotal = sorted.filter(isReceived).reduce((s, x) => s + x.amount, 0);
@@ -422,7 +426,7 @@ function IncomeSection({ incomes, month, paidMap, transactions, addIncome, delet
       <Card>
         <SectionTitle>Add expected income</SectionTitle>
         <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
-          <input value={name} placeholder="Name — e.g. Paycheck"
+          <input ref={nameRef} value={name} placeholder="Name — e.g. Paycheck"
             onChange={(e) => { setName(e.target.value); setErr(""); }} style={inputStyle} />
           <input type="number" min="0" step="0.01" value={amount} placeholder="Amount"
             onChange={(e) => { setAmount(e.target.value); setErr(""); }} style={inputStyle} />
@@ -437,7 +441,9 @@ function IncomeSection({ incomes, month, paidMap, transactions, addIncome, delet
       </Card>
 
       {sorted.length === 0 ? (
-        <Empty text="No expected income yet. Add your paycheck and check it off each month when it lands." card />
+        <Empty card
+          text="No expected income yet. Add your paycheck and check it off each month when it lands."
+          actionLabel="Add your paycheck" onAction={() => focusField(nameRef)} />
       ) : (
         <Card>
           <SectionTitle right={

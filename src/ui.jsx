@@ -116,6 +116,21 @@ export function Empty({ text, card, actionLabel, onAction }) {
   return card ? <Card>{inner}</Card> : inner;
 }
 
+// Puts the caret in a form that is already on the page. Where the add form
+// sits directly above its own empty state, the honest action is to drop you
+// into the first field rather than to open something that is already open.
+export function focusField(ref) {
+  const el = ref.current;
+  if (!el) return;
+  // Focus first: calling it after scrollIntoView cancels the smooth scroll
+  // that is still in flight, and the field ends up focused but off-screen.
+  el.focus({ preventScroll: true });
+  // index.css turns off animation for reduced motion; match it here, and fall
+  // back to an instant jump rather than leaving the field focused off-screen.
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "center" });
+}
+
 // Animates a number toward its target — used by the summary stats
 export function useCountUp(value, duration = 420) {
   const [disp, setDisp] = useState(value);
