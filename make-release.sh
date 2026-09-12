@@ -15,6 +15,7 @@ mkdir -p "$STAGE"
 # developer notes, not something a download needs.
 tar --exclude=./node_modules \
     --exclude=./ARCHITECTURE.md \
+    --exclude=./docs \
     --exclude=./dist \
     --exclude=./.git \
     --exclude=./.vite \

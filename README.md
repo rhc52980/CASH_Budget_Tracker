@@ -6,6 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)
 
+![The CASH home screen: this month's left-to-budget, bills due in the next seven days, paychecks still to land, spending by category, and six months of income against spending](docs/overview.png)
+
 A personal budget that lives on your own computer. Enter your bills and income
 once, and every month CASH tells you what is due, what is about to land, and
 what is left to budget.

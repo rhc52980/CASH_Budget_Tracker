@@ -113,7 +113,11 @@ export function Overview({
   );
 
   return (
-    <div style={{ display: "grid", gap: 14, marginTop: 14, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+    <div style={{
+      display: "grid", gap: 14, marginTop: 14,
+      // 340px minimum: two cards across the 1000px container, never a stranded third column
+      gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+    }}>
       {outlook.isCurrent && <ThisMonth outlook={outlook} onGoTo={onGoTo} />}
       <Card>
         <SectionTitle>Where the money went</SectionTitle>
