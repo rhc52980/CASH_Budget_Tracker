@@ -26,6 +26,20 @@ text editor, copy to a USB stick, or delete.
 The trade-off is honest: there is no bank sync. You enter things, or import a
 statement CSV. In return you know exactly where every number came from.
 
+## A look around
+
+Bills are entered once. Fixed ones pay themselves on the due day; ones that
+vary ask what you were actually charged. A loan shows what is left and when it
+clears, and your income sits underneath as an annual and monthly total.
+
+![The Bills tab: seven monthly bills with AUTO and VARIES badges, three already paid, a car loan's payoff progress, and the household income totals](docs/bills.png)
+
+Budgets start with the number that matters — what is left of take-home once
+bills and category limits are spoken for — and tell you when a limit is smaller
+than the bills that land in it.
+
+![The Budgets tab: left to budget, then per-category limits with progress bars, a rollover surplus carried into Groceries, and Transport over its limit](docs/budgets.png)
+
 ## Getting started on Windows
 
 1. Install [Node.js](https://nodejs.org) — download the **LTS** installer and
