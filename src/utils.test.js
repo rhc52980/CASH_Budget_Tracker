@@ -4,6 +4,7 @@ import {
   loanRemaining, loanPaymentsLeft, accountBalance, netWorth, clearedBalance,
   isAutoPayDue, dateChipLabel,
   payDatesInMonth, paychecksPerYear, monthlyEquivalent, annualEquivalent, leftToBudget,
+  monthOutlook,
 } from "./utils.js";
 
 describe("date helpers", () => {
@@ -283,6 +284,62 @@ describe("leftToBudget", () => {
     const r = leftToBudget({ takeHome: 1000, bills: [], budgets: { Dining: 0 } });
     expect(r.committed).toBe(0);
     expect(r.byCat.Dining).toBeUndefined();
+  });
+});
+
+describe("monthOutlook", () => {
+  const bills = [
+    { id: "rent", name: "Rent", amount: 1500, category: "Housing", dueDay: 1 },
+    { id: "water", name: "Water", amount: 90, category: "Utilities", dueDay: 15 },
+    { id: "gym", name: "Gym", amount: 40, category: "Health", dueDay: 28 },
+  ];
+  const incomes = [{ id: "pay", name: "Pay", amount: 3000, schedule: "semimonthly", payDay: 1, payDay2: 15 }];
+  const base = {
+    today: "2026-09-12", month: "2026-09", bills, billPaid: {}, incomes, incomePaid: {},
+    liveTxIds: new Set(), budgets: {},
+  };
+
+  it("splits unpaid bills into overdue and due within the horizon", () => {
+    const o = monthOutlook(base);
+    expect(o.overdue.map((u) => u.bill.id)).toEqual(["rent"]);
+    expect(o.dueSoon.map((u) => u.bill.id)).toEqual(["water"]); // the 28th is beyond 7 days
+    expect(o.overdueTotal).toBe(1500);
+    expect(o.dueSoonTotal).toBe(90);
+  });
+
+  it("drops a bill once its payment exists, and brings it back if that payment is deleted", () => {
+    const paid = { ...base, billPaid: { "2026-09": { rent: "t1" } }, liveTxIds: new Set(["t1"]) };
+    expect(monthOutlook(paid).overdue).toEqual([]);
+    const deleted = { ...paid, liveTxIds: new Set() };
+    expect(monthOutlook(deleted).overdue.map((u) => u.bill.id)).toEqual(["rent"]);
+  });
+
+  it("looks into next month when the horizon crosses it", () => {
+    const o = monthOutlook({ ...base, today: "2026-09-27" });
+    expect(o.dueSoon.map((u) => [u.bill.id, u.date])).toEqual([["gym", "2026-09-28"], ["rent", "2026-10-01"]]);
+    // but not next month's bills beyond the horizon
+    expect(o.dueSoon.some((u) => u.bill.id === "water")).toBe(false);
+  });
+
+  it("lists paychecks this month that have not landed, each occurrence on its own", () => {
+    const o = monthOutlook({ ...base, incomePaid: { "2026-09": { "pay:2026-09-01": "i1" } }, liveTxIds: new Set(["i1"]) });
+    expect(o.pending.map((p) => p.date)).toEqual(["2026-09-15"]);
+    expect(o.pendingTotal).toBe(3000);
+  });
+
+  it("honours a bare id written before schedules for the first pay date", () => {
+    const o = monthOutlook({ ...base, incomePaid: { "2026-09": { pay: "i1" } }, liveTxIds: new Set(["i1"]) });
+    expect(o.pending.map((p) => p.date)).toEqual(["2026-09-15"]);
+  });
+
+  it("plans from take-home when there is income, and says so when there is none", () => {
+    expect(monthOutlook({ ...base, budgets: { Dining: 400 } }).plan.left).toBe(6000 - 1630 - 400);
+    expect(monthOutlook({ ...base, incomes: [] }).plan).toBeNull();
+  });
+
+  it("knows when it is not looking at the current month", () => {
+    expect(monthOutlook(base).isCurrent).toBe(true);
+    expect(monthOutlook({ ...base, month: "2026-08" }).isCurrent).toBe(false);
   });
 });
 

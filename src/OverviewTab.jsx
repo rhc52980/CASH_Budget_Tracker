@@ -5,12 +5,98 @@ import {
 import { T } from "./theme.js";
 import { useApp } from "./ctx.js";
 import { fmt, kFmt } from "./utils.js";
-import { Card, SectionTitle, Empty, pill, tooltipStyle } from "./ui.jsx";
+import { Card, SectionTitle, Empty, pill, tooltipStyle, numeral, ghostBtn } from "./ui.jsx";
 import { TxList } from "./TransactionsTab.jsx";
+
+const shortDate = (d) => {
+  const [y, m, dd] = d.split("-").map(Number);
+  return new Date(y, m - 1, dd).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
+// The two things worth checking daily — what is left to budget and what is
+// about to leave or land — used to sit two taps away on Budgets and Bills.
+// Only shown for the current month: "due in 7 days" means nothing in March.
+function ThisMonth({ outlook, onGoTo }) {
+  const { catColor } = useApp();
+  const { overdue, dueSoon, pending, plan, overdueTotal, dueSoonTotal, pendingTotal } = outlook;
+  const upcoming = [...overdue, ...dueSoon];
+  const nothingSetUp = !plan && upcoming.length === 0 && pending.length === 0;
+
+  const stat = (label, value, color) => (
+    <div>
+      <div style={{ fontSize: 12, color: T.mute }}>{label}</div>
+      <div style={{ ...numeral(22), color: color || T.ink }}>{value}</div>
+    </div>
+  );
+  const go = (tab, label) => (
+    <button onClick={() => onGoTo(tab)} style={{ ...ghostBtn, padding: "6px 11px", fontSize: 12.5 }}>{label} ›</button>
+  );
+
+  return (
+    <Card style={{ gridColumn: "1 / -1" }}>
+      <SectionTitle right={<div style={{ display: "flex", gap: 6 }}>{go("bills", "Bills")}{go("budgets", "Budgets")}</div>}>
+        This month
+      </SectionTitle>
+      {nothingSetUp ? (
+        <p style={{ margin: 0, fontSize: 13.5, color: T.mute, lineHeight: 1.5 }}>
+          Add your bills and income once on the Bills tab, and this will show what is
+          due, what is about to land, and what is left to budget.
+        </p>
+      ) : (
+        <>
+          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+            {plan
+              ? stat(plan.left >= 0 ? "Left to budget" : "Over-committed by", fmt(Math.abs(plan.left)), plan.left >= 0 ? T.pos : T.neg)
+              : stat("Left to budget", "—")}
+            {overdue.length > 0
+              ? stat("Overdue", `${overdue.length} · ${fmt(overdueTotal)}`, T.neg)
+              : stat("Due in 7 days", dueSoon.length ? `${dueSoon.length} · ${fmt(dueSoonTotal)}` : "Nothing")}
+            {stat("Paychecks to come", pending.length ? `${pending.length} · ${fmt(pendingTotal)}` : "All in")}
+          </div>
+          {!plan && (
+            <p style={{ margin: "10px 0 0", fontSize: 12.5, color: T.mute }}>
+              Add your income on the Bills tab to see what is left to budget.
+            </p>
+          )}
+          {(upcoming.length > 0 || pending.length > 0) && (
+            <div style={{ marginTop: 14, borderTop: `1px solid ${T.line}` }}>
+              {upcoming.map(({ bill, date }) => {
+                const late = date < outlook.today;
+                return (
+                  <div key={bill.id + date} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", fontSize: 13.5, borderBottom: `1px solid ${T.line}` }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: catColor(bill.category), flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontWeight: 550 }}>{bill.name}</span>
+                    <span style={{ fontSize: 12.5, color: late ? T.neg : T.mute }}>
+                      {late ? `was due ${shortDate(date)}` : `due ${shortDate(date)}`}
+                    </span>
+                    <span style={{ fontVariantNumeric: "tabular-nums", minWidth: 80, textAlign: "right" }}>{fmt(bill.amount)}</span>
+                  </div>
+                );
+              })}
+              {pending.map(({ inc, date }) => {
+                const missed = date < outlook.today;
+                return (
+                  <div key={inc.id + date} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 2px", fontSize: 13.5, borderBottom: `1px solid ${T.line}` }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: T.pos, flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontWeight: 550 }}>{inc.name}</span>
+                    <span style={{ fontSize: 12.5, color: T.mute }}>
+                      {missed ? `${shortDate(date)} — not marked received` : shortDate(date)}
+                    </span>
+                    <span style={{ fontVariantNumeric: "tabular-nums", minWidth: 80, textAlign: "right", color: T.pos }}>+{fmt(inc.amount)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
 
 export function Overview({
   spentByCat, trendRows, trendCats, trendKind, setTrendKind,
-  trendRange, setTrendRange, monthTx, expenses, insights, onAddEntry,
+  trendRange, setTrendRange, monthTx, expenses, insights, onAddEntry, outlook, onGoTo,
 }) {
   const { chart: C, catColor } = useApp();
   const pieData = Object.entries(spentByCat)
@@ -28,6 +114,7 @@ export function Overview({
 
   return (
     <div style={{ display: "grid", gap: 14, marginTop: 14, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+      {outlook.isCurrent && <ThisMonth outlook={outlook} onGoTo={onGoTo} />}
       <Card>
         <SectionTitle>Where the money went</SectionTitle>
         {pieData.length === 0 ? (

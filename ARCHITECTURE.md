@@ -78,6 +78,13 @@ exposed to the network. Nothing is hosted and nothing leaves the machine.
   category with both a budget and bills counts the larger once: a bill's
   payment lands in its category, so a limit below its bills is a limit that
   will be blown, not extra spending on top.
+- `monthOutlook` feeds the "This month" card at the top of Overview: overdue
+  and due-within-7-days bills (reaching into next month when the horizon
+  crosses it), paychecks this month not yet received, and the left-to-budget
+  figure. It is only rendered for the current month — "due in 7 days" means
+  nothing when you are looking at March. Paid/received uses the same
+  live-transaction rule as the Bills tab, so deleting a payment brings the
+  bill back here too.
 - Theming: `data-theme` on `<html>` is one of light/dark/midnight/contrast;
   the stored preference may also be `auto`, resolved from `prefers-color-scheme`
   and kept live via a media-query listener. Accent is applied separately as an

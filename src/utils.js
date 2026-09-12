@@ -217,6 +217,59 @@ export function leftToBudget({ takeHome, bills, budgets }) {
   return { takeHome, committed, left: takeHome - committed, byCat };
 }
 
+const addDays = (ymd, n) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d) + n * 86400000).toISOString().slice(0, 10);
+};
+
+/**
+ * What the home screen needs to say about right now: bills overdue or due
+ * within the horizon (looking into next month if the horizon crosses it),
+ * paychecks this month not yet received, and what is left to budget. A bill
+ * or paycheck only counts as done while its transaction still exists, the
+ * same rule the Bills tab uses.
+ */
+export function monthOutlook({
+  today, month, bills, billPaid, incomes, incomePaid, liveTxIds, budgets, horizonDays = 7,
+}) {
+  const isCurrent = monthKey(today) === month;
+  const horizon = addDays(today, horizonDays);
+  const paidIn = (ym, b) => { const id = (billPaid[ym] || {})[b.id]; return Boolean(id && liveTxIds.has(id)); };
+
+  const unpaid = [];
+  [month, shiftMonth(month, 1)].forEach((ym) => {
+    bills.forEach((b) => {
+      if (paidIn(ym, b)) return;
+      const date = dueDateInMonth(ym, b.dueDay);
+      // next month only contributes what falls inside the horizon
+      if (ym !== month && date > horizon) return;
+      unpaid.push({ bill: b, date });
+    });
+  });
+  unpaid.sort((a, b) => a.date.localeCompare(b.date));
+  const overdue = unpaid.filter((u) => u.date < today);
+  const dueSoon = unpaid.filter((u) => u.date >= today && u.date <= horizon);
+
+  const paidMap = incomePaid[month] || {};
+  const pending = incomes
+    .flatMap((inc) => payDatesInMonth(inc, month).map((date, i) => ({ inc, date, i })))
+    .filter(({ inc, date, i }) => {
+      const id = paidMap[payKey(inc.id, date)] ?? (i === 0 ? paidMap[inc.id] : undefined);
+      return !(id && liveTxIds.has(id));
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const takeHome = incomes.reduce((s, x) => s + monthlyEquivalent(x), 0);
+  const plan = incomes.length ? leftToBudget({ takeHome, bills, budgets }) : null;
+  const sum = (list, pick) => list.reduce((s, x) => s + pick(x), 0);
+  return {
+    isCurrent, overdue, dueSoon, pending, plan,
+    overdueTotal: sum(overdue, (u) => u.bill.amount),
+    dueSoonTotal: sum(dueSoon, (u) => u.bill.amount),
+    pendingTotal: sum(pending, (p) => p.inc.amount),
+  };
+}
+
 export const kFmt = (v) => {
   const a = Math.abs(v);
   return (v < 0 ? "−" : "") + (a >= 1000 ? `$${(a / 1000).toFixed(1)}k` : `$${a}`);

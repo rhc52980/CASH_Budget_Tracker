@@ -8,7 +8,7 @@ import {
 } from "./storage.js";
 import {
   fmt, uid, monthKey, todayStr, monthLabel, shiftMonth, dueDateInMonth, computeCarry,
-  isAutoPayDue, payDatesInMonth, payKey,
+  isAutoPayDue, payDatesInMonth, payKey, monthOutlook,
 } from "./utils.js";
 import { buildCsvPreview, merchantKey } from "./csv.js";
 import { btn, ghostBtn, pill, numeral, useCountUp } from "./ui.jsx";
@@ -305,6 +305,20 @@ export default function BudgetBook() {
     () => computeCarry(data.transactions, data.budgets, data.budgetRollover, month, expenseCats),
     [data.transactions, data.budgets, data.budgetRollover, month, expenseCats]
   );
+
+  // What the home screen says about now. Recomputed on any ledger change so
+  // marking a bill paid on the Bills tab is reflected the moment you return.
+  const outlook = useMemo(() => {
+    const today = todayStr();
+    return {
+      today,
+      ...monthOutlook({
+        today, month, bills: data.bills, billPaid: data.billPaid,
+        incomes: data.incomes, incomePaid: data.incomePaid,
+        liveTxIds: new Set(data.transactions.map((t) => t.id)), budgets: data.budgets,
+      }),
+    };
+  }, [month, data.bills, data.billPaid, data.incomes, data.incomePaid, data.transactions, data.budgets]);
 
   // Rows for the trend chart over the selected range, ending at the viewed
   // month. Spending is folded to the top 5 categories + "All else" so the
@@ -688,7 +702,7 @@ export default function BudgetBook() {
             trendKind={trendKind} setTrendKind={setTrendKind}
             trendRange={trendRange} setTrendRange={setTrendRange}
             monthTx={monthTx} expenses={expenses} insights={insights}
-            onAddEntry={openAdd} />
+            onAddEntry={openAdd} outlook={outlook} onGoTo={setTab} />
         )}
         {tab === "accounts" && (
           <AccountsTab accounts={data.accounts} transactions={data.transactions}
