@@ -122,7 +122,7 @@ exposed to the network. Nothing is hosted and nothing leaves the machine.
 
 ## Conventions
 
-- `.claude/` is gitignored — it holds machine-local Claude Code settings.
+- `.claude/` is gitignored — machine-local editor and tooling settings.
 - Commit messages: short imperative subject line, no attribution trailers.
 - Never commit anything from `data/`, and never put real ledger figures into
   code, tests, or fixtures.

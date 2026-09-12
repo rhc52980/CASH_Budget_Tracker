@@ -88,9 +88,9 @@ echo   Stop-CASH.bat shuts it down.
 echo.
 echo   You can now delete the folder you downloaded.
 echo.
-echo   Your ledger is saved in your browser on this
-echo   PC. It is not uploaded anywhere, and updating
-echo   the app never touches it.
+echo   Your ledger is a file in the CASH folder:
+echo   dataledger.json. It is not uploaded anywhere,
+echo   and updating the app never touches it.
 echo ===============================================
 echo.
 

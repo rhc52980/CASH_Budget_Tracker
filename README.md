@@ -1,10 +1,28 @@
 # CASH — Count All Spending Habits
 
-Personal budgeting ledger. Track income and expenses by month, check off
-monthly bills, set per-category budgets, and fund savings goals.
+[![Latest release](https://img.shields.io/github/v/release/rhc52980/CASH_Budget_Tracker)](https://github.com/rhc52980/CASH_Budget_Tracker/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/rhc52980/CASH_Budget_Tracker/total)](https://github.com/rhc52980/CASH_Budget_Tracker/releases)
+[![CI](https://github.com/rhc52980/CASH_Budget_Tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/rhc52980/CASH_Budget_Tracker/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)
 
-CASH runs entirely on your own machine — no account, nothing uploaded. Your
-ledger is a plain JSON file in the CASH folder.
+A personal budget that lives on your own computer. Enter your bills and income
+once, and every month CASH tells you what is due, what is about to land, and
+what is left to budget.
+
+No account. Nothing uploaded. Your ledger is a plain JSON file in the CASH
+folder, and the only thing that can read it is a small server bound to your
+own machine.
+
+## Why it exists
+
+Most budgeting apps want your bank login and a subscription, and keep your
+finances on someone else's server. CASH wants neither. It is built for one
+household, on one machine, with the whole ledger in a file you can open in a
+text editor, copy to a USB stick, or delete.
+
+The trade-off is honest: there is no bank sync. You enter things, or import a
+statement CSV. In return you know exactly where every number came from.
 
 ## Getting started on Windows
 
@@ -132,6 +150,20 @@ npm run preview  # serve the production build on :4173
 Built with React + Vite; charts by Recharts. CASH is not hosted — pushes to
 `main` only run the tests and build. See `ARCHITECTURE.md` for architecture notes.
 
+To cut a release, bump `version` in `package.json`, run
+`npm install --package-lock-only`, commit, then tag it:
+
+```
+git tag v1.6.0 && git push origin v1.6.0
+```
+
+The Release workflow builds the same zip and tarball `make-release.sh` makes
+locally and attaches them to a GitHub release. The tag must match
+`package.json`, or the workflow refuses.
+
+Bug reports and feature requests: [open an issue](https://github.com/rhc52980/CASH_Budget_Tracker/issues).
+The Feedback link in the app's footer goes to the same place.
+
 ## Features
 
 - **Overview** — spending-by-category donut, recent entries, and a Trends chart
@@ -144,9 +176,17 @@ Built with React + Vite; charts by Recharts. CASH is not hosted — pushes to
   and interest rate. CASH shows what is left, how many payments remain, and the
   month it clears — interest is charged before principal, so the figures are real
   rather than a plain subtraction.
-- **Expected income** — recurring paychecks with pay days; mark them received and the income is logged automatically
+- **Income** — add each paycheck once with how often it arrives: monthly, twice a
+  month, every two weeks, or weekly. Enter it per paycheck or as an annual figure,
+  with an optional gross amount alongside take-home. Tick **auto-receive** and it
+  logs itself on pay day. A **Household income** card keeps the annual and monthly
+  totals in view.
+- **This month** — the home screen opens with what is left to budget, bills due in
+  the next seven days (or overdue, in red), and paychecks still to land.
 - **Budgets** — monthly limit per category with progress bars, over-budget warnings,
-  and optional rollover that carries unspent budget (or overspending) into the next month
+  and optional rollover that carries unspent budget (or overspending) into the next
+  month. **Left to budget** shows take-home minus bills and limits, and flags a
+  category whose limit is smaller than its bills.
 - **Accounts** — checking, savings, cash, credit cards and loans, each with a live
   balance, plus your net worth. Transfers move money between your own accounts
   without counting as income or spending.
@@ -178,3 +218,24 @@ Built with React + Vite; charts by Recharts. CASH is not hosted — pushes to
   with Issues enabled for anyone other than the owner to reach it; the URL lives in
   `FEEDBACK_URL` in `src/constants.js`.
 - **Installable PWA** — add it to your phone or desktop; works offline (production build)
+
+## What it can't do
+
+- **No bank sync.** Nothing connects to your bank. You enter entries or import a
+  statement CSV.
+- **One household, one machine.** There is no login, no sync between devices, and
+  no sharing. The ledger is a file; copy the folder to move it.
+- **Not a tax tool.** Gross income is recorded for reference only; nothing is
+  calculated from it.
+- **Localhost only.** The server binds to 127.0.0.1 and will not serve the network.
+  That is deliberate, and there is no option to change it.
+
+## Requirements
+
+- Node.js 18 or newer (the LTS installer is fine)
+- Windows 10/11, or a Linux desktop with a browser
+- Chrome, Edge or Firefox
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).

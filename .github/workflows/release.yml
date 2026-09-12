@@ -1,0 +1,84 @@
+# Builds the Windows zip and Linux tarball and attaches them to a GitHub
+# release. Triggered by pushing a version tag:
+#
+#   git tag v1.6.0 && git push origin v1.6.0
+#
+# The archives are the same ones make-release.sh produces locally, so a
+# download from the Releases page and a local build are the same thing. The
+# script refuses to package anything that looks like a ledger, and that guard
+# runs here too.
+#
+# Can also be run by hand from the Actions tab (workflow_dispatch) to check
+# the packaging without cutting a release.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write        # needed to create the release and upload assets
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The version lives in package.json; the tag is just how a release gets
+      # cut. Read it so the archive names match what the app reports.
+      - name: Read version
+        id: ver
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Packaging CASH $VERSION"
+
+      # Fail loudly if the tag and package.json disagree, rather than publishing
+      # a v1.6.0 release whose footer says 1.5.1.
+      - name: Check the tag matches the declared version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          if [ "$TAG" != "${{ steps.ver.outputs.version }}" ]; then
+            echo "::error::Tag v$TAG does not match version ${{ steps.ver.outputs.version }} in package.json"
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+      - name: Build the archives
+        run: |
+          chmod +x make-release.sh
+          ./make-release.sh "$PWD/release"
+          ls -lh release/CASH-v*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CASH-v${{ steps.ver.outputs.version }}
+          path: |
+            release/CASH-v*.zip
+            release/CASH-v*-linux.tar.gz
+          retention-days: 14
+
+      # Only on a tag. A manual run just uploads to the Actions tab, so the
+      # packaging can be checked without publishing anything. Uses the gh CLI
+      # that ships on the runner rather than a third-party action.
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --title "CASH ${{ steps.ver.outputs.version }}" --generate-notes
+          gh release upload "$TAG" release/CASH-v*.zip release/CASH-v*-linux.tar.gz --clobber

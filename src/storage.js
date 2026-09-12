@@ -12,10 +12,7 @@ export const MIGRATED_KEY = "cash-migrated-at";
 export const fresh = (url) => `${url}${url.includes("?") ? "&" : "?"}_=${Date.now()}`;
 export const SCHEMA_VERSION = 1;
 
-const SNAP_PREFIX = "cash-snap-";
 const LAST_EXPORT_KEY = "cash-last-export";
-export const MAX_SNAPSHOTS = 5;
-const MIN_SNAPSHOT_GAP_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 export const DEFAULTS = {
   version: SCHEMA_VERSION,

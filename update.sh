@@ -16,8 +16,8 @@ cash_need_node || exit 1
 OLDVER=$(node -p "require('./package.json').version")
 echo "Currently installed: v$OLDVER"
 echo
-echo "Your ledger lives in your browser, not in this folder,"
-echo "so updating cannot affect it."
+echo "Your ledger is data/ledger.json in this folder. Updating"
+echo "never touches data/, so it cannot affect it."
 echo
 
 # CASH holds files open while it runs, which makes npm fail partway through.
@@ -37,8 +37,8 @@ if [ ! -d .git ]; then
        https://github.com/rhc52980/CASH_Budget_Tracker
     2. Extract it, then run ./install.sh
 
-  Your ledger stays put either way - it is stored
-  in your browser, not in these files.
+  Your ledger stays put either way - it is in
+  data/ledger.json, which no update touches.
 -----------------------------------------------
 MSG
   exit 0

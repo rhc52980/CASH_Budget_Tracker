@@ -81,9 +81,9 @@ cat <<MSG
 
   You can now delete the folder you downloaded.
 
-  Your ledger is saved in your browser on this
-  machine. It is not uploaded anywhere, and
-  updating the app never touches it.
+  Your ledger is a file in the CASH folder
+  (data/ledger.json). It is not uploaded anywhere,
+  and updating the app never touches it.
 ===============================================
 MSG
 echo

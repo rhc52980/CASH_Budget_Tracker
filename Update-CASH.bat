@@ -20,8 +20,8 @@ if errorlevel 1 (
 for /f "usebackq delims=" %%v in (`node -p "require('./package.json').version" 2^>nul`) do set "OLDVER=%%v"
 echo Currently installed: v%OLDVER%
 echo.
-echo Your ledger lives in your browser, not in this folder,
-echo so updating cannot affect it.
+echo Your ledger is dataledger.json in this folder. Updating
+echo never touches data, so it cannot affect it.
 echo.
 
 REM CASH holds files open while it runs, which makes npm fail partway through.
@@ -105,8 +105,8 @@ echo     1. Download the latest ZIP from
 echo        https://github.com/rhc52980/CASH_Budget_Tracker
 echo     2. Extract it, then run Install-CASH.bat
 echo.
-echo   Your ledger stays put either way - it is stored
-echo   in your browser, not in these files.
+echo   Your ledger stays put either way - it is in
+echo   dataledger.json, which no update touches.
 echo -----------------------------------------------
 goto done
 

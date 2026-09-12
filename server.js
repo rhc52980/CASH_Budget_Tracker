@@ -6,7 +6,7 @@
 import { createServer } from "node:http";
 import { readFile, writeFile, rename, mkdir, readdir, stat, copyFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, extname, normalize, dirname } from "node:path";
+import { join, extname, normalize, dirname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -74,9 +74,10 @@ async function rotateBackups() {
 async function serveStatic(req, res, urlPath) {
   let rel = decodeURIComponent(urlPath.split("?")[0]);
   if (rel === "/" || rel === "") rel = "/index.html";
-  // Keep the request inside dist/
+  // Keep the request inside dist/. Compared with a trailing separator so a
+  // sibling folder that merely starts with "dist" cannot pass.
   const target = normalize(join(DIST, rel));
-  if (!target.startsWith(DIST)) { res.writeHead(403); return res.end("Forbidden"); }
+  if (target !== DIST && !target.startsWith(DIST + sep)) { res.writeHead(403); return res.end("Forbidden"); }
   try {
     const body = await readFile(target);
     res.writeHead(200, {
