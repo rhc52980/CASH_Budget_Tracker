@@ -25,6 +25,12 @@ self.addEventListener("fetch", (e) => {
   const { request } = e;
   if (request.method !== "GET") return;
 
+  // The ledger API is never cached. A cached GET /api/ledger meant a reload
+  // showed a stale ledger and then saved it back over the real file. The
+  // app also cache-busts these URLs, so an older worker cannot serve them
+  // from cache either.
+  if (new URL(request.url).pathname.startsWith("/api/")) return;
+
   // Navigations: network first so updates land, cached shell when offline.
   // Keyed by registration scope so this works under a subpath (GitHub Pages).
   if (request.mode === "navigate") {

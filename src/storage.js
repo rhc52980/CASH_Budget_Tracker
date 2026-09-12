@@ -5,6 +5,11 @@ export const STORE_KEY = "budget-book-v1";
 // so a pre-server ledger can be migrated out of browser storage once.
 export const LEDGER_API = "/api/ledger";
 export const MIGRATED_KEY = "cash-migrated-at";
+// A unique query string per read. The service worker matches its cache by
+// URL, so this can never hit a cached copy of the ledger — even a worker
+// from before /api/ was excluded from caching. `cache: "no-store"` alone
+// does not reach the worker's cache.
+export const fresh = (url) => `${url}${url.includes("?") ? "&" : "?"}_=${Date.now()}`;
 export const SCHEMA_VERSION = 1;
 
 const SNAP_PREFIX = "cash-snap-";
@@ -49,7 +54,7 @@ export function withDefaults(parsed) {
 export async function loadLedger(store = localStorage) {
   let res;
   try {
-    res = await fetch(LEDGER_API, { cache: "no-store" });
+    res = await fetch(fresh(LEDGER_API), { cache: "no-store" });
   } catch {
     return { data: withDefaults({}), ok: false, raw: null, reason: "server-unreachable" };
   }
@@ -113,7 +118,7 @@ export const BACKUPS_API = "/api/backups";
 /** Timestamped copies the server keeps beside the ledger file. */
 export async function listBackups() {
   try {
-    const res = await fetch(BACKUPS_API, { cache: "no-store" });
+    const res = await fetch(fresh(BACKUPS_API), { cache: "no-store" });
     if (!res.ok) return { ok: false, backups: [] };
     const body = await res.json();
     return body.ok ? { ok: true, backups: body.backups, dir: body.dir } : { ok: false, backups: [] };

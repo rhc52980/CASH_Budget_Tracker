@@ -143,6 +143,34 @@ export default function BudgetBook() {
     return () => { cancelled = true; };
   }, [data, loaded, loadProblem]);
 
+  // Reconnect. The server is a separate process, so it can be down when the
+  // page opens (the browser is launched a beat before it) or die underneath
+  // a running page. Either way, keep trying rather than waiting for the next
+  // edit: an unsaved page that quietly stays unsaved is how data gets lost.
+  const lostAtLoad = loadProblem?.reason === "server-unreachable";
+  const lostAtSave = saveError === "server-unreachable" && !loadProblem;
+  const retryNow = useCallback(async () => {
+    if (lostAtLoad) {
+      // Nothing was ever written in this state, so the server's copy is the
+      // only real one and simply replaces what is on screen.
+      const res = await loadLedger();
+      if (res.ok) { setData(res.data); setLoadProblem(null); }
+      return res.ok;
+    }
+    if (lostAtSave) {
+      const res = await saveLedger(dataRef.current);
+      if (res.ok) setSaveError(null);
+      return res.ok;
+    }
+    return true;
+  }, [lostAtLoad, lostAtSave]);
+
+  useEffect(() => {
+    if (!lostAtLoad && !lostAtSave) return;
+    const id = setInterval(retryNow, 4000);
+    return () => clearInterval(id);
+  }, [lostAtLoad, lostAtSave, retryNow]);
+
   const chart = CHART[resolvedTheme] || CHART.light;
   // Auto-pay: once a bill's due day has arrived, log it without being asked.
   // Never touches a future month, never a month before the bill existed, and
@@ -634,17 +662,29 @@ export default function BudgetBook() {
       </header>
 
       <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 20px" }}>
-        {loadProblem && (
+        {lostAtLoad && (
           <Banner tone="danger"
-            text={`Your saved ledger couldn't be read (${loadProblem.reason}), so CASH has stopped saving to avoid overwriting it. The original data is still on this device${loadProblem.key ? "" : ""} — restore a snapshot or a backup file to continue.`}
+            text="CASH can't reach its own server, so your ledger hasn't loaded yet. Start CASH (double-click its icon) — this page reconnects on its own within a few seconds. Anything entered before then is not kept."
+            actionLabel="Retry now"
+            onAction={retryNow} />
+        )}
+        {loadProblem && !lostAtLoad && (
+          <Banner tone="danger"
+            text={`Your saved ledger couldn't be read (${loadProblem.reason}), so CASH has stopped saving to avoid overwriting it. The original data is still on this device — restore a snapshot or a backup file to continue.`}
             actionLabel="Open backup & data"
             onAction={() => setShowBackup(true)} />
         )}
-        {saveError && !loadProblem && (
+        {lostAtSave && (
           <Banner tone="danger"
-            text={saveError === "server-unreachable"
-              ? "CASH cannot reach its own server, so your latest changes are not being saved. Make sure the CASH window or service is still running, then reload."
-              : `Your changes could not be written to the ledger file (${saveError}). Export a backup now so nothing is lost.`}
+            text="CASH can't reach its own server, so your latest changes are not saved yet. Start CASH (double-click its icon) and this page will save them on its own within a few seconds — don't reload or close it until this notice clears."
+            actionLabel="Retry now"
+            onAction={retryNow}
+            secondaryLabel="Export backup"
+            onSecondary={exportData} />
+        )}
+        {saveError && !lostAtSave && !loadProblem && (
+          <Banner tone="danger"
+            text={`Your changes could not be written to the ledger file (${saveError}). Export a backup now so nothing is lost.`}
             actionLabel="Export backup"
             onAction={exportData} />
         )}
@@ -877,7 +917,7 @@ function Stat({ label, value, color, signed, emphasis }) {
   );
 }
 
-function Banner({ text, actionLabel, onAction, tone }) {
+function Banner({ text, actionLabel, onAction, secondaryLabel, onSecondary, tone }) {
   const danger = tone === "danger";
   return (
     <div style={{
@@ -888,6 +928,11 @@ function Banner({ text, actionLabel, onAction, tone }) {
       fontSize: 13.5, color: T.ink, lineHeight: 1.5,
     }}>
       <span style={{ flex: 1, minWidth: 200 }}>{text}</span>
+      {secondaryLabel && (
+        <button onClick={onSecondary} style={{ ...ghostBtn, padding: "7px 13px", fontSize: 13 }}>
+          {secondaryLabel}
+        </button>
+      )}
       <button onClick={onAction}
         style={{ ...btn(danger ? T.neg : T.brass, "#fff"), padding: "7px 13px", fontSize: 13 }}>
         {actionLabel}

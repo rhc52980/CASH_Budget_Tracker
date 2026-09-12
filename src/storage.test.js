@@ -28,8 +28,10 @@ const ledger = (n = 1) => ({
 // Stand in for the local server
 function mockServer({ raw = null, getOk = true, putOk = true, backups = [] } = {}) {
   const state = { raw, puts: [] };
-  global.fetch = vi.fn(async (url, opts = {}) => {
+  global.fetch = vi.fn(async (rawUrl, opts = {}) => {
     const method = opts.method || "GET";
+    // Reads carry a cache-busting query; the server routes on the path alone
+    const url = String(rawUrl).split("?")[0];
     if (url === "/api/ledger" && method === "GET") {
       return getOk
         ? { ok: true, json: async () => ({ ok: true, raw: state.raw }) }
@@ -225,5 +227,27 @@ describe("withDefaults", () => {
     expect(merged.transactions).toHaveLength(1);
     expect(merged.accounts).toHaveLength(1);
     expect(merged.budgets).toEqual({});
+  });
+});
+
+// The service worker matches its cache by URL. A reused URL for the ledger
+// once served a stale copy on reload, which the app then saved back over the
+// real file. Every read must therefore be a URL the worker has never seen.
+describe("API reads cannot be served from a worker cache", () => {
+  it("gives every ledger read a unique URL", async () => {
+    mockServer({ raw: JSON.stringify(ledger(1)) });
+    await loadLedger(makeStore());
+    await new Promise((r) => setTimeout(r, 2));
+    await loadLedger(makeStore());
+    const urls = global.fetch.mock.calls.filter(([, o]) => !o?.method || o.method === "GET").map(([u]) => String(u));
+    expect(urls.length).toBe(2);
+    expect(urls[0]).toMatch(/^\/api\/ledger\?_=\d+$/);
+    expect(urls[0]).not.toBe(urls[1]);
+  });
+
+  it("does the same for the backups list", async () => {
+    mockServer({ backups: [] });
+    await listBackups();
+    expect(String(global.fetch.mock.calls[0][0])).toMatch(/^\/api\/backups\?_=\d+$/);
   });
 });

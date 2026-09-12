@@ -31,6 +31,12 @@ exposed to the network. Nothing is hosted and nothing leaves the machine.
   and commit both.
   This is separate from `SCHEMA_VERSION` in storage.js, which versions the data
   shape — bump that only when the stored ledger structure changes.
+- The service worker (`public/sw.js`) precaches the app shell and is
+  cache-first for hashed assets, and must never intercept `/api/`. It once
+  did: a cached `GET /api/ledger` meant a reload showed a stale ledger and the
+  save-on-change effect wrote it back over the real file. `storage.js` also
+  appends a unique query to every API read (`fresh`) so a worker from before
+  the exclusion cannot serve one from cache during the update hand-over.
 - Persistence spans `server.js` and `src/storage.js`, and is deliberately
   defensive: this is the only copy of the ledger. The server writes to a temp
   file and renames, so a crash mid-write leaves the previous ledger intact, and
