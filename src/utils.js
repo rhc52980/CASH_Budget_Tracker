@@ -139,6 +139,84 @@ export function dateChipLabel(date, today = todayStr()) {
     : { month: "short", day: "numeric", year: "numeric" });
 }
 
+/**
+ * Pay schedules. `amount` on an income entry is always per paycheck; these
+ * turn it into the monthly and annual figures the rest of the app plans with.
+ * Biweekly is 26 a year, not 24 — two months get a third paycheck.
+ */
+export const PAY_SCHEDULES = [
+  ["monthly", "Once a month", 12],
+  ["semimonthly", "Twice a month", 24],
+  ["biweekly", "Every two weeks", 26],
+  ["weekly", "Every week", 52],
+];
+export const paychecksPerYear = (schedule) =>
+  (PAY_SCHEDULES.find(([id]) => id === (schedule || "monthly")) || PAY_SCHEDULES[0])[2];
+export const monthlyEquivalent = (inc) => (inc.amount * paychecksPerYear(inc.schedule)) / 12;
+export const monthlyGrossEquivalent = (inc) => ((inc.gross || 0) * paychecksPerYear(inc.schedule)) / 12;
+// The typed annual figure wins when there is one, so $85,000 reads back as
+// $85,000 and not 26 x a rounded paycheck.
+export const annualEquivalent = (inc) => inc.annualAmount ?? inc.amount * paychecksPerYear(inc.schedule);
+export const annualGrossEquivalent = (inc) =>
+  inc.annualGross ?? (inc.gross ? inc.gross * paychecksPerYear(inc.schedule) : 0);
+
+// incomePaid is keyed per occurrence, because a biweekly paycheck can land
+// three times in one month and each needs its own received/undone state.
+export const payKey = (incomeId, date) => `${incomeId}:${date}`;
+
+/**
+ * Every date this income lands in `ym`, ascending. Monthly and twice-monthly
+ * use days of the month (clamped, so the 31st is the 28th in February);
+ * weekly and biweekly step from a known pay date, which may be before, in, or
+ * after the month. Done in UTC so a DST change can never shift a pay date.
+ */
+export function payDatesInMonth(inc, ym) {
+  const kind = inc.schedule || "monthly";
+  if (kind === "monthly") return [dueDateInMonth(ym, inc.payDay)];
+  if (kind === "semimonthly") {
+    const a = dueDateInMonth(ym, inc.payDay);
+    const b = dueDateInMonth(ym, inc.payDay2);
+    return a === b ? [a] : [a, b].sort();
+  }
+  if (!inc.anchor) return [];
+  const step = kind === "weekly" ? 7 : 14;
+  const DAY = 86400000;
+  const [y, m] = ym.split("-").map(Number);
+  const [ay, am, ad] = inc.anchor.split("-").map(Number);
+  const start = Date.UTC(y, m - 1, 1);
+  const end = Date.UTC(y, m, 0);
+  const anchor = Date.UTC(ay, am - 1, ad);
+  // First occurrence on or after the 1st, whichever side of it the anchor is on
+  const offset = (((Math.round((start - anchor) / DAY) % step) + step) % step);
+  let t = offset === 0 ? start : start + (step - offset) * DAY;
+  const out = [];
+  for (; t <= end; t += step * DAY) out.push(new Date(t).toISOString().slice(0, 10));
+  return out;
+}
+
+/**
+ * What is left of monthly take-home after everything already spoken for.
+ * A bill's payment lands in its category, so where a category has both a
+ * budget and bills the larger is counted once rather than both — a $500
+ * Transport budget under $3,080 of car payments is a budget that will be
+ * blown, not $3,580 of commitments.
+ */
+export function leftToBudget({ takeHome, bills, budgets }) {
+  const billsByCat = {};
+  bills.forEach((b) => { billsByCat[b.category] = (billsByCat[b.category] || 0) + b.amount; });
+  const cats = new Set([...Object.keys(billsByCat), ...Object.keys(budgets).filter((c) => budgets[c] > 0)]);
+  const byCat = {};
+  let committed = 0;
+  cats.forEach((cat) => {
+    const budget = budgets[cat] || 0;
+    const fromBills = billsByCat[cat] || 0;
+    const counted = Math.max(budget, fromBills);
+    byCat[cat] = { budget, bills: fromBills, counted, underBudgeted: budget > 0 && fromBills > budget };
+    committed += counted;
+  });
+  return { takeHome, committed, left: takeHome - committed, byCat };
+}
+
 export const kFmt = (v) => {
   const a = Math.abs(v);
   return (v < 0 ? "−" : "") + (a >= 1000 ? `$${(a / 1000).toFixed(1)}k` : `$${a}`);

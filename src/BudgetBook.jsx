@@ -8,7 +8,7 @@ import {
 } from "./storage.js";
 import {
   fmt, uid, monthKey, todayStr, monthLabel, shiftMonth, dueDateInMonth, computeCarry,
-  isAutoPayDue,
+  isAutoPayDue, payDatesInMonth, payKey,
 } from "./utils.js";
 import { buildCsvPreview, merchantKey } from "./csv.js";
 import { btn, ghostBtn, pill, numeral, useCountUp } from "./ui.jsx";
@@ -182,9 +182,10 @@ export default function BudgetBook() {
   }, [loaded, loadProblem, data, month]);
 
   // Auto-receive: the income counterpart to auto-pay, for a paycheck that is
-  // the same every time. isAutoPayDue only reads autoPay/varies/dueDay/
-  // createdAt, so an income entry is passed through with payDay renamed to
-  // dueDay rather than duplicating the rule.
+  // the same every time. One income can land several times a month, so the
+  // rule runs per pay date; isAutoPayDue only reads autoPay/varies/dueDay/
+  // createdAt, so each date is passed through as a dueDay rather than
+  // duplicating the rule.
   useEffect(() => {
     if (!loaded || loadProblem) return;
     const today = todayStr();
@@ -195,22 +196,29 @@ export default function BudgetBook() {
     const received = data.incomePaid[month] || {};
     const liveTx = new Set(data.transactions.map((t) => t.id));
 
-    const due = data.incomes.filter((inc) => isAutoPayDue(
-      { autoPay: inc.autoPay, varies: false, dueDay: inc.payDay, createdAt: inc.createdAt },
-      { month, today, paidTxId: received[inc.id], liveTxIds: liveTx, skipped: skipped[inc.id] },
-    ));
+    const due = [];
+    data.incomes.forEach((inc) => {
+      payDatesInMonth(inc, month).forEach((date) => {
+        const key = payKey(inc.id, date);
+        const ok = isAutoPayDue(
+          { autoPay: inc.autoPay, varies: false, dueDay: Number(date.slice(8)), createdAt: inc.createdAt },
+          { month, today, paidTxId: received[key], liveTxIds: liveTx, skipped: skipped[key] },
+        );
+        if (ok) due.push([inc, date]);
+      });
+    });
     if (!due.length) return;
 
     setData((d) => {
       const added = [];
       const map = { ...(d.incomePaid[month] || {}) };
-      due.forEach((inc) => {
+      due.forEach(([inc, date]) => {
         const tx = {
           id: uid(), type: "income", amount: inc.amount, category: inc.category,
-          date: dueDateInMonth(month, inc.payDay), note: inc.name, incomeId: inc.id, autoPaid: true,
+          date, note: inc.name, incomeId: inc.id, autoPaid: true,
         };
         added.push(tx);
-        map[inc.id] = tx.id;
+        map[payKey(inc.id, date)] = tx.id;
       });
       return {
         ...d,
@@ -403,35 +411,43 @@ export default function BudgetBook() {
     ...d, incomes: d.incomes.map((x) => (x.id === id ? { ...x, ...patch } : x)),
   }));
   const deleteIncome = (id) => { remember("Income removed"); setData((d) => {
-    const incomePaid = {};
-    Object.entries(d.incomePaid).forEach(([ym, m]) => {
-      const { [id]: _, ...rest } = m;
-      incomePaid[ym] = rest;
-    });
-    return { ...d, incomes: d.incomes.filter((x) => x.id !== id), incomePaid };
+    // Keys are "id:date" per occurrence (or a bare id from before schedules)
+    const ours = (k) => k === id || k.startsWith(id + ":");
+    const strip = (byMonth) => Object.fromEntries(Object.entries(byMonth).map(([ym, m]) =>
+      [ym, Object.fromEntries(Object.entries(m).filter(([k]) => !ours(k)))]));
+    return {
+      ...d,
+      incomes: d.incomes.filter((x) => x.id !== id),
+      incomePaid: strip(d.incomePaid),
+      incomeAutoPaySkip: strip(d.incomeAutoPaySkip),
+    };
   }); };
-  const markIncomeReceived = (inc) => setData((d) => {
+  const markIncomeReceived = (inc, date) => setData((d) => {
+    const key = payKey(inc.id, date);
     const tx = {
       id: uid(), type: "income", amount: inc.amount, category: inc.category,
-      date: dueDateInMonth(month, inc.payDay), note: inc.name, incomeId: inc.id,
+      date, note: inc.name, incomeId: inc.id,
     };
     const skipMonth = { ...(d.incomeAutoPaySkip[month] || {}) };
-    delete skipMonth[inc.id];
+    delete skipMonth[key];
     return {
       ...d,
       transactions: [...d.transactions, tx],
-      incomePaid: { ...d.incomePaid, [month]: { ...(d.incomePaid[month] || {}), [inc.id]: tx.id } },
+      incomePaid: { ...d.incomePaid, [month]: { ...(d.incomePaid[month] || {}), [key]: tx.id } },
       incomeAutoPaySkip: { ...d.incomeAutoPaySkip, [month]: skipMonth },
     };
   });
-  const unmarkIncomeReceived = (inc) => setData((d) => {
+  const unmarkIncomeReceived = (inc, date) => setData((d) => {
+    const key = payKey(inc.id, date);
     const monthMap = { ...(d.incomePaid[month] || {}) };
-    const txId = monthMap[inc.id];
+    // A pre-schedule ledger stored one bare id per month; honour it once
+    const txId = monthMap[key] ?? monthMap[inc.id];
+    delete monthMap[key];
     delete monthMap[inc.id];
     // Undoing an auto-receive has to stick, or the effect above would just
     // re-apply it on the next render
     const skip = inc.autoPay
-      ? { ...d.incomeAutoPaySkip, [month]: { ...(d.incomeAutoPaySkip[month] || {}), [inc.id]: true } }
+      ? { ...d.incomeAutoPaySkip, [month]: { ...(d.incomeAutoPaySkip[month] || {}), [key]: true } }
       : d.incomeAutoPaySkip;
     return {
       ...d,
@@ -691,7 +707,8 @@ export default function BudgetBook() {
         {tab === "budgets" && (
           <Budgets budgets={data.budgets} spentByCat={spentByCat} setBudget={setBudget}
             rollover={data.budgetRollover} toggleRollover={toggleRollover} carryByCat={carryByCat}
-            customCats={data.customCats} addCustomCat={addCustomCat} deleteCustomCat={deleteCustomCat} />
+            customCats={data.customCats} addCustomCat={addCustomCat} deleteCustomCat={deleteCustomCat}
+            incomes={data.incomes} bills={data.bills} onGoToIncome={() => setTab("bills")} />
         )}
         {tab === "goals" && (
           <Goals goals={data.goals} addGoal={addGoal} fundGoal={fundGoal} deleteGoal={deleteGoal} />

@@ -2,16 +2,74 @@ import { useState } from "react";
 import { T } from "./theme.js";
 import { useApp } from "./ctx.js";
 import { CUSTOM_CAT_COLORS } from "./constants.js";
-import { fmt } from "./utils.js";
-import { Card, SectionTitle, ProgressBar, btn, inputStyle } from "./ui.jsx";
+import { fmt, leftToBudget, monthlyEquivalent } from "./utils.js";
+import { Card, SectionTitle, ProgressBar, btn, ghostBtn, inputStyle, numeral } from "./ui.jsx";
+
+// The one number a budget is for: what is still unspoken for once bills and
+// category limits come out of take-home. Reads from the income entries on the
+// Bills tab, so it is right every month without being re-entered.
+function LeftToBudget({ incomes, bills, budgets, onGoToIncome }) {
+  const takeHome = incomes.reduce((s, x) => s + monthlyEquivalent(x), 0);
+  if (!incomes.length) {
+    return (
+      <Card>
+        <SectionTitle>Left to budget</SectionTitle>
+        <p style={{ margin: "0 0 12px", fontSize: 13, color: T.mute, lineHeight: 1.5 }}>
+          Add your income once on the Bills tab and CASH will show what is left after
+          bills and budgets, every month.
+        </p>
+        <button onClick={onGoToIncome} style={{ ...ghostBtn, padding: "8px 14px", fontSize: 13 }}>
+          Add income
+        </button>
+      </Card>
+    );
+  }
+  const r = leftToBudget({ takeHome, bills, budgets });
+  const under = Object.entries(r.byCat).filter(([, v]) => v.underBudgeted);
+  const billsOnly = bills.reduce((s, b) => s + b.amount, 0);
+  const budgetsOnly = Object.values(budgets).reduce((s, v) => s + (v || 0), 0);
+  return (
+    <Card>
+      <SectionTitle>Left to budget</SectionTitle>
+      <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
+        <div>
+          <div style={{ fontSize: 12, color: T.mute }}>Take-home / month</div>
+          <div style={numeral(22)}>{fmt(takeHome)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 12, color: T.mute }}>Bills and budgets</div>
+          <div style={numeral(22)}>{fmt(r.committed)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 12, color: T.mute }}>{r.left >= 0 ? "Left to budget" : "Over-committed by"}</div>
+          <div style={{ ...numeral(22), color: r.left >= 0 ? T.pos : T.neg }}>{fmt(Math.abs(r.left))}</div>
+        </div>
+      </div>
+      <p style={{ margin: "12px 0 0", fontSize: 12.5, color: T.mute, lineHeight: 1.5 }}>
+        {fmt(billsOnly)} in bills and {fmt(budgetsOnly)} in category limits.
+        {r.committed < billsOnly + budgetsOnly && (
+          <> Where a category has both, the larger counts once — a bill's payment lands
+          in its category, so it is not on top of that category's limit.</>
+        )}
+      </p>
+      {under.map(([cat, v]) => (
+        <p key={cat} style={{ margin: "8px 0 0", fontSize: 12.5, color: T.neg, lineHeight: 1.5 }}>
+          {cat}'s limit ({fmt(v.budget)}) is below its bills ({fmt(v.bills)}), so it will be over
+          every month. Counted at {fmt(v.counted)}.
+        </p>
+      ))}
+    </Card>
+  );
+}
 
 export function Budgets({
   budgets, spentByCat, setBudget, rollover, toggleRollover, carryByCat,
-  customCats, addCustomCat, deleteCustomCat,
+  customCats, addCustomCat, deleteCustomCat, incomes, bills, onGoToIncome,
 }) {
   const { expenseCats, catColor } = useApp();
   return (
     <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+      <LeftToBudget incomes={incomes} bills={bills} budgets={budgets} onGoToIncome={onGoToIncome} />
       <Card>
         <SectionTitle>Monthly budgets by category</SectionTitle>
         <p style={{ margin: "0 0 14px", fontSize: 13, color: T.mute }}>

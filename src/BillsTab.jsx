@@ -5,6 +5,8 @@ import { INCOME_CATS, BILL_PRESETS } from "./constants.js";
 import {
   fmt, uid, ordinal, monthLabel, dueDateInMonth, todayStr, shiftMonth,
   loanRemaining, loanPaymentsLeft,
+  PAY_SCHEDULES, paychecksPerYear, payDatesInMonth, payKey,
+  monthlyEquivalent, monthlyGrossEquivalent, annualEquivalent, annualGrossEquivalent,
 } from "./utils.js";
 import { Card, SectionTitle, Empty, ProgressBar, btn, chip, focusField, inputStyle, numeral } from "./ui.jsx";
 
@@ -318,9 +320,68 @@ function LoanProgress({ bill, paymentsMade }) {
 
 const monthKeyToday = () => todayStr().slice(0, 7);
 
+// The pay-schedule fields an income entry needs, shared by the add form and
+// the edit row. Monthly and twice-monthly take days of the month; the two
+// stepped schedules take one known pay date and walk from it.
+const scheduleState = (item = {}) => ({
+  schedule: item.schedule || "monthly",
+  payDay: String(item.payDay || 1),
+  payDay2: String(item.payDay2 || 15),
+  anchor: item.anchor || todayStr(),
+});
+
+// Turns the form state into the fields to store, or an error to show
+function readSchedule(s) {
+  const d1 = parseInt(s.payDay, 10);
+  const d2 = parseInt(s.payDay2, 10);
+  const dayOk = (d) => d >= 1 && d <= 31;
+  if (s.schedule === "monthly") {
+    if (!dayOk(d1)) return { error: "Pay day must be between 1 and 31." };
+    return { patch: { schedule: "monthly", payDay: d1, payDay2: undefined, anchor: undefined } };
+  }
+  if (s.schedule === "semimonthly") {
+    if (!dayOk(d1) || !dayOk(d2)) return { error: "Both pay days must be between 1 and 31." };
+    if (d1 === d2) return { error: "The two pay days need to be different." };
+    return { patch: { schedule: "semimonthly", payDay: Math.min(d1, d2), payDay2: Math.max(d1, d2), anchor: undefined } };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s.anchor)) return { error: "Pick a date you were paid on." };
+  // payDay is kept as the anchor's day so anything sorting by it still works
+  return { patch: { schedule: s.schedule, anchor: s.anchor, payDay: Number(s.anchor.slice(8)), payDay2: undefined } };
+}
+
+function ScheduleFields({ value, onChange, compact }) {
+  const set = (patch) => onChange({ ...value, ...patch });
+  const w = compact ? { width: 70 } : {};
+  return (
+    <>
+      <select value={value.schedule} onChange={(e) => set({ schedule: e.target.value })}
+        aria-label="How often you are paid" style={{ ...inputStyle, ...(compact ? { width: 150 } : {}) }}>
+        {PAY_SCHEDULES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+      </select>
+      {value.schedule === "monthly" && (
+        <input type="number" min="1" max="31" value={value.payDay} placeholder="Pay day (1–31)"
+          aria-label="Pay day" onChange={(e) => set({ payDay: e.target.value })} style={{ ...inputStyle, ...w }} />
+      )}
+      {value.schedule === "semimonthly" && (
+        <>
+          <input type="number" min="1" max="31" value={value.payDay} placeholder="First pay day"
+            aria-label="First pay day" onChange={(e) => set({ payDay: e.target.value })} style={{ ...inputStyle, ...w }} />
+          <input type="number" min="1" max="31" value={value.payDay2} placeholder="Second pay day"
+            aria-label="Second pay day" onChange={(e) => set({ payDay2: e.target.value })} style={{ ...inputStyle, ...w }} />
+        </>
+      )}
+      {(value.schedule === "biweekly" || value.schedule === "weekly") && (
+        <input type="date" value={value.anchor} aria-label="A date you were paid on"
+          title="Any pay date — CASH works out the rest from it"
+          onChange={(e) => set({ anchor: e.target.value })} style={{ ...inputStyle, ...(compact ? { width: 150 } : {}) }} />
+      )}
+    </>
+  );
+}
+
 // Shared inline editor for bills (dueDay) and expected income (payDay).
 // `kind` picks which extra fields apply: a bill can vary or track a loan
-// payoff; income instead carries an optional gross figure.
+// payoff; income instead carries an optional gross figure and a schedule.
 function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel, kind }) {
   const isBill = kind === "bill";
   const isIncome = kind === "income";
@@ -328,18 +389,22 @@ function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel, k
   const [amount, setAmount] = useState(String(item.amount));
   const [category, setCategory] = useState(item.category);
   const [day, setDay] = useState(String(item[dayField]));
+  const [sched, setSched] = useState(() => scheduleState(item));
   const [autoPay, setAutoPay] = useState(Boolean(item.autoPay));
   const [varies, setVaries] = useState(Boolean(item.varies));
   const [gross, setGross] = useState(item.gross ? String(item.gross) : "");
   const [bal, setBal] = useState(item.loanBalance ? String(item.loanBalance) : "");
   const [apr, setApr] = useState(item.loanApr ? String(item.loanApr) : "");
+  const [err, setErr] = useState("");
 
   const save = () => {
     const amt = parseFloat(amount);
-    const d = parseInt(day, 10);
-    if (!name.trim() || !amt || amt <= 0 || !d || d < 1 || d > 31) return;
-    const patch = { name: name.trim(), amount: amt, category, [dayField]: d };
+    if (!name.trim() || !amt || amt <= 0) return;
+    const patch = { name: name.trim(), amount: amt, category };
     if (isBill) {
+      const d = parseInt(day, 10);
+      if (!d || d < 1 || d > 31) return;
+      patch[dayField] = d;
       patch.varies = varies;
       patch.autoPay = varies ? false : autoPay;
       const b = parseFloat(bal);
@@ -347,11 +412,14 @@ function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel, k
       patch.loanApr = b > 0 ? (parseFloat(apr) || 0) : undefined;
     }
     if (isIncome) {
+      const s = readSchedule(sched);
+      if (s.error) { setErr(s.error); return; }
+      Object.assign(patch, s.patch);
       patch.autoPay = autoPay;
       const g = parseFloat(gross);
       patch.gross = g > 0 ? g : undefined;
-      // This is now an exact new monthly figure rather than one derived from
-      // an annual entry, so any stored annual total would be stale.
+      // This is now an exact new per-paycheck figure rather than one derived
+      // from an annual entry, so any stored annual total would be stale.
       patch.annualAmount = undefined;
       patch.annualGross = undefined;
     }
@@ -369,8 +437,11 @@ function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel, k
       <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...inputStyle, width: 140 }}>
         {cats.map((c) => <option key={c}>{c}</option>)}
       </select>
-      <input type="number" min="1" max="31" value={day}
-        onChange={(e) => setDay(e.target.value)} style={{ ...inputStyle, width: 70 }} />
+      {isBill && (
+        <input type="number" min="1" max="31" value={day}
+          onChange={(e) => setDay(e.target.value)} style={{ ...inputStyle, width: 70 }} />
+      )}
+      {isIncome && <ScheduleFields compact value={sched} onChange={(v) => { setSched(v); setErr(""); }} />}
       {isIncome && (
         <input type="number" min="0" step="0.01" value={gross} placeholder="Gross (optional)"
           title="Before deductions — shown alongside the take-home figure"
@@ -410,58 +481,77 @@ function RecurringEditRow({ item, dayField, cats, topBorder, onSave, onCancel, k
       )}
       <button onClick={save} style={{ ...btn(T.pos), padding: "8px 14px" }}>Save</button>
       <button onClick={onCancel} style={{ ...btn("transparent", T.mute), padding: "8px 10px" }}>Cancel</button>
+      {err && <div style={{ color: T.neg, fontSize: 13, width: "100%" }}>{err}</div>}
     </div>
   );
 }
+
+// "Sep 4" for a stepped schedule, where the day of the month changes
+const shortDate = (d) => {
+  const [y, m, dd] = d.split("-").map(Number);
+  return new Date(y, m - 1, dd).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
 
 function IncomeSection({ incomes, month, paidMap, transactions, addIncome, deleteIncome, updateIncome, markIncome, unmarkIncome }) {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [gross, setGross] = useState("");
   const [category, setCategory] = useState(INCOME_CATS[0]);
-  const [payDay, setPayDay] = useState("1");
+  const [sched, setSched] = useState(scheduleState);
   // Whichever figure you actually know — a lot of people think of a salary
-  // per year, not per paycheck. Both write the same monthly amount underneath.
+  // per year, not per paycheck. Both write the same per-paycheck amount.
   const [period, setPeriod] = useState("monthly");
   const [autoPay, setAutoPay] = useState(false);
   const [err, setErr] = useState("");
   const [editId, setEditId] = useState(null);
 
   const txIds = useMemo(() => new Set(transactions.map((t) => t.id)), [transactions]);
-  const isReceived = (x) => Boolean(paidMap[x.id] && txIds.has(paidMap[x.id]));
+  // Per occurrence. A ledger from before schedules stored one bare id a
+  // month; that counts for the first pay date so nothing looks unreceived.
+  const receivedTx = (x, date, i) => paidMap[payKey(x.id, date)] ?? (i === 0 ? paidMap[x.id] : undefined);
+  const isReceived = (x, date, i) => { const id = receivedTx(x, date, i); return Boolean(id && txIds.has(id)); };
 
   const create = () => {
     const rawAmt = parseFloat(amount);
-    const day = parseInt(payDay, 10);
     if (!name.trim()) { setErr("Give it a name — e.g. Paycheck."); return; }
     if (!rawAmt || rawAmt <= 0) { setErr("Enter an amount greater than zero."); return; }
-    if (!day || day < 1 || day > 31) { setErr("Pay day must be between 1 and 31."); return; }
+    const s = readSchedule(sched);
+    if (s.error) { setErr(s.error); return; }
     const rawGross = gross.trim() ? parseFloat(gross) : null;
     const annual = period === "annual";
-    const amt = Math.round((annual ? rawAmt / 12 : rawAmt) * 100) / 100;
-    const grossAmt = rawGross > 0 ? Math.round((annual ? rawGross / 12 : rawGross) * 100) / 100 : undefined;
+    // An annual figure splits by how many paychecks there are, not by 12
+    const per = paychecksPerYear(s.patch.schedule);
+    const amt = Math.round((annual ? rawAmt / per : rawAmt) * 100) / 100;
+    const grossAmt = rawGross > 0 ? Math.round((annual ? rawGross / per : rawGross) * 100) / 100 : undefined;
     addIncome({
-      id: uid(), name: name.trim(), amount: amt, gross: grossAmt, category, payDay: day,
+      id: uid(), name: name.trim(), amount: amt, gross: grossAmt, category, ...s.patch,
       autoPay, createdAt: todayStr(),
       // Keep the figure you actually typed for the household total, so a
-      // $85,000 salary reads back as $85,000/yr rather than 12x a rounded
-      // monthly amount.
+      // $85,000 salary reads back as $85,000/yr rather than 26x a rounded
+      // paycheck.
       ...(annual ? { annualAmount: rawAmt, annualGross: rawGross > 0 ? rawGross : undefined } : {}),
     });
-    setName(""); setAmount(""); setGross(""); setPayDay("1"); setAutoPay(false); setErr("");
+    setName(""); setAmount(""); setGross(""); setSched(scheduleState()); setAutoPay(false); setErr("");
   };
 
   const nameRef = useRef(null);
   const sorted = [...incomes].sort((a, b) => a.payDay - b.payDay);
-  const total = sorted.reduce((s, x) => s + x.amount, 0);
-  const receivedTotal = sorted.filter(isReceived).reduce((s, x) => s + x.amount, 0);
+  // One row per time each income lands this month, in date order
+  const occurrences = sorted
+    .flatMap((x) => payDatesInMonth(x, month).map((date, i) => ({ x, date, i })))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const total = occurrences.reduce((s, o) => s + o.x.amount, 0);
+  const receivedTotal = occurrences.filter((o) => isReceived(o.x, o.date, o.i)).reduce((s, o) => s + o.x.amount, 0);
 
   // The running household total this section exists for — set once per
   // income source, never re-entered, and unaffected by what's been checked
-  // off this month.
-  const annualTakeHome = sorted.reduce((s, x) => s + (x.annualAmount ?? x.amount * 12), 0);
+  // off this month. Monthly figures are averages: a biweekly paycheck is
+  // 26 a year, so "per month" is 2⅙ of them.
+  const monthlyTakeHome = sorted.reduce((s, x) => s + monthlyEquivalent(x), 0);
+  const annualTakeHome = sorted.reduce((s, x) => s + annualEquivalent(x), 0);
   const hasGross = sorted.some((x) => x.gross > 0);
-  const annualGross = sorted.reduce((s, x) => s + (x.annualGross ?? (x.gross ? x.gross * 12 : 0)), 0);
+  const monthlyGross = sorted.reduce((s, x) => s + monthlyGrossEquivalent(x), 0);
+  const annualGross = sorted.reduce((s, x) => s + annualGrossEquivalent(x), 0);
 
   return (
     <>
@@ -475,7 +565,7 @@ function IncomeSection({ incomes, month, paidMap, transactions, addIncome, delet
             </div>
             <div>
               <div style={{ fontSize: 12, color: T.mute }}>Take-home / month</div>
-              <div style={numeral(22)}>{fmt(total)}</div>
+              <div style={numeral(22)}>{fmt(monthlyTakeHome)}</div>
             </div>
             {hasGross && (
               <div>
@@ -486,7 +576,7 @@ function IncomeSection({ incomes, month, paidMap, transactions, addIncome, delet
             {hasGross && (
               <div>
                 <div style={{ fontSize: 12, color: T.mute }}>Gross / month</div>
-                <div style={numeral(22)}>{fmt(sorted.reduce((s, x) => s + (x.gross || 0), 0))}</div>
+                <div style={numeral(22)}>{fmt(monthlyGross)}</div>
               </div>
             )}
           </div>
@@ -512,8 +602,7 @@ function IncomeSection({ incomes, month, paidMap, transactions, addIncome, delet
           <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
             {INCOME_CATS.map((c) => <option key={c}>{c}</option>)}
           </select>
-          <input type="number" min="1" max="31" value={payDay} placeholder="Pay day (1–31)"
-            onChange={(e) => { setPayDay(e.target.value); setErr(""); }} style={inputStyle} />
+          <ScheduleFields value={sched} onChange={(v) => { setSched(v); setErr(""); }} />
           <button onClick={create} style={btn(T.pos)}>Add income</button>
         </div>
         <label style={{
@@ -547,18 +636,22 @@ function IncomeSection({ incomes, month, paidMap, transactions, addIncome, delet
           <div style={{ margin: "2px 0 14px" }}>
             <ProgressBar ratio={total ? receivedTotal / total : 0} over={false} />
           </div>
-          {sorted.map((x, i) => {
+          {occurrences.map(({ x, date, i }, row) => {
             if (editId === x.id) {
-              return <RecurringEditRow key={x.id} item={x} dayField="payDay" cats={INCOME_CATS} topBorder={i > 0}
+              // The editor stands in for every row of that income
+              if (i > 0) return null;
+              return <RecurringEditRow key={x.id} item={x} dayField="payDay" cats={INCOME_CATS} topBorder={row > 0}
                 kind="income"
                 onSave={(patch) => { updateIncome(x.id, patch); setEditId(null); }}
                 onCancel={() => setEditId(null)} />;
             }
-            const received = isReceived(x);
+            const received = isReceived(x, date, i);
+            const stepped = x.schedule === "biweekly" || x.schedule === "weekly";
+            const when = stepped ? shortDate(date) : `the ${ordinal(Number(date.slice(8)))}`;
             return (
-              <div key={x.id} style={{
+              <div key={payKey(x.id, date)} style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "10px 2px",
-                borderTop: i ? `1px solid ${T.line}` : "none", fontSize: 14,
+                borderTop: row ? `1px solid ${T.line}` : "none", fontSize: 14,
                 opacity: received ? 0.65 : 1,
               }}>
                 <span style={{ width: 10, height: 10, borderRadius: 3, flexShrink: 0, background: T.pos }} />
@@ -576,24 +669,29 @@ function IncomeSection({ incomes, month, paidMap, transactions, addIncome, delet
                     )}
                   </div>
                   <div style={{ fontSize: 12, color: T.mute }}>
-                    {x.category}{x.gross > 0 && <> · gross {fmt(x.gross)}</>} · arrives the {ordinal(x.payDay)}
+                    {x.category}{x.gross > 0 && <> · gross {fmt(x.gross)}</>} · arrives {when}
                     {x.autoPay && !received && " — will arrive automatically"}
                   </div>
                 </div>
                 <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600, minWidth: 80, textAlign: "right", color: T.pos }}>
                   +{fmt(x.amount)}
                 </span>
-                <button onClick={() => (received ? unmarkIncome(x) : markIncome(x))}
-                  title={x.autoPay && received ? "Received automatically — click to undo for this month" : undefined}
+                <button onClick={() => (received ? unmarkIncome(x, date) : markIncome(x, date))}
+                  title={x.autoPay && received ? "Received automatically — click to undo this one" : undefined}
                   style={received
                     ? { ...btn(T.paper, T.pos), border: `1px solid ${T.line}` }
                     : btn(T.pos)}>
                   {received ? "Received ✓" : "Mark received"}
                 </button>
-                <button onClick={() => setEditId(x.id)} aria-label={`Edit ${x.name} income`}
-                  style={{ ...btn("transparent", T.mute), padding: "4px 6px", fontSize: 14 }}>✎</button>
-                <button onClick={() => deleteIncome(x.id)} aria-label={`Delete ${x.name} income`}
-                  style={{ ...btn("transparent", T.mute), padding: "4px 8px", fontSize: 16 }}>×</button>
+                {/* Edit and delete act on the income, so they appear once */}
+                {i === 0 ? (
+                  <>
+                    <button onClick={() => setEditId(x.id)} aria-label={`Edit ${x.name} income`}
+                      style={{ ...btn("transparent", T.mute), padding: "4px 6px", fontSize: 14 }}>✎</button>
+                    <button onClick={() => deleteIncome(x.id)} aria-label={`Delete ${x.name} income`}
+                      style={{ ...btn("transparent", T.mute), padding: "4px 8px", fontSize: 16 }}>×</button>
+                  </>
+                ) : <span aria-hidden style={{ width: 62 }} />}
               </div>
             );
           })}

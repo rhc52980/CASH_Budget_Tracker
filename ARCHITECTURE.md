@@ -63,12 +63,21 @@ exposed to the network. Nothing is hosted and nothing leaves the machine.
   `RecurringEditRow`'s `kind` prop ("bill" | "income") picks which extra
   fields show — a bill can vary or track a loan payoff; income instead carries
   an optional `gross` figure, shown next to the take-home amount but never fed
-  into a transaction. Adding an income "Enter annual" divides by 12 for the
-  monthly amount actually posted, but keeps the typed annual figure
-  (`annualAmount`/`annualGross`) so the household-income summary reads back
-  exactly what was entered rather than a monthly amount times 12 with a
-  rounding drift; editing the monthly amount afterward clears both, since
-  they'd otherwise go stale.
+  into a transaction, and a pay `schedule`.
+- Income `amount` is always per paycheck. `schedule` is monthly (`payDay`),
+  semimonthly (`payDay`+`payDay2`), or biweekly/weekly (`anchor`, one known
+  pay date that `payDatesInMonth` steps from in UTC — it can land three times
+  in a month, and 26 a year is not 24). `monthlyEquivalent`/`annualEquivalent`
+  scale it for planning; `incomePaid` and `incomeAutoPaySkip` are keyed per
+  occurrence as `id:date` (`payKey`), with a bare `id` from before schedules
+  honoured for the first date. "Enter annual" divides by paychecks-per-year,
+  but keeps the typed figure (`annualAmount`/`annualGross`) so the household
+  summary reads back exactly what was entered; editing the amount afterward
+  clears both, since they'd otherwise go stale.
+- `leftToBudget` (Budgets tab) is take-home minus commitments, where a
+  category with both a budget and bills counts the larger once: a bill's
+  payment lands in its category, so a limit below its bills is a limit that
+  will be blown, not extra spending on top.
 - Theming: `data-theme` on `<html>` is one of light/dark/midnight/contrast;
   the stored preference may also be `auto`, resolved from `prefers-color-scheme`
   and kept live via a media-query listener. Accent is applied separately as an

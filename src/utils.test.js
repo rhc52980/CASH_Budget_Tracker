@@ -3,6 +3,7 @@ import {
   monthKey, monthDiff, shiftMonth, dueDateInMonth, ordinal, kFmt, computeCarry,
   loanRemaining, loanPaymentsLeft, accountBalance, netWorth, clearedBalance,
   isAutoPayDue, dateChipLabel,
+  payDatesInMonth, paychecksPerYear, monthlyEquivalent, annualEquivalent, leftToBudget,
 } from "./utils.js";
 
 describe("date helpers", () => {
@@ -193,6 +194,95 @@ describe("isAutoPayDue", () => {
   // a number the user was never charged.
   it("never auto-pays a bill whose amount varies", () => {
     expect(isAutoPayDue({ ...base, varies: true }, ctx())).toBe(false);
+  });
+});
+
+describe("payDatesInMonth", () => {
+  it("defaults to monthly on the pay day", () => {
+    expect(payDatesInMonth({ payDay: 15 }, "2026-09")).toEqual(["2026-09-15"]);
+    expect(payDatesInMonth({ schedule: "monthly", payDay: 31 }, "2026-02")).toEqual(["2026-02-28"]);
+  });
+
+  it("twice a month gives both days in order, and never the same day twice", () => {
+    expect(payDatesInMonth({ schedule: "semimonthly", payDay: 15, payDay2: 1 }, "2026-09"))
+      .toEqual(["2026-09-01", "2026-09-15"]);
+    // both clamp to the 28th in February -> one paycheck, not two
+    expect(payDatesInMonth({ schedule: "semimonthly", payDay: 30, payDay2: 31 }, "2026-02"))
+      .toEqual(["2026-02-28"]);
+  });
+
+  it("every two weeks steps from the anchor and sometimes lands three times", () => {
+    const inc = { schedule: "biweekly", anchor: "2026-09-04" };
+    expect(payDatesInMonth(inc, "2026-09")).toEqual(["2026-09-04", "2026-09-18"]);
+    expect(payDatesInMonth(inc, "2026-10")).toEqual(["2026-10-02", "2026-10-16", "2026-10-30"]);
+  });
+
+  it("works backwards from an anchor after the month, and across a year end", () => {
+    const inc = { schedule: "biweekly", anchor: "2027-01-08" };
+    expect(payDatesInMonth(inc, "2026-12")).toEqual(["2026-12-11", "2026-12-25"]);
+    expect(payDatesInMonth(inc, "2027-01")).toEqual(["2027-01-08", "2027-01-22"]);
+  });
+
+  it("weekly is the same walk with a 7 day step", () => {
+    expect(payDatesInMonth({ schedule: "weekly", anchor: "2026-09-04" }, "2026-09"))
+      .toEqual(["2026-09-04", "2026-09-11", "2026-09-18", "2026-09-25"]);
+  });
+
+  it("gives nothing rather than crashing when a stepped schedule has no anchor", () => {
+    expect(payDatesInMonth({ schedule: "biweekly" }, "2026-09")).toEqual([]);
+  });
+});
+
+describe("income equivalents", () => {
+  it("knows how many paychecks a year each schedule is", () => {
+    expect(paychecksPerYear(undefined)).toBe(12);
+    expect(paychecksPerYear("semimonthly")).toBe(24);
+    expect(paychecksPerYear("biweekly")).toBe(26);
+    expect(paychecksPerYear("weekly")).toBe(52);
+  });
+
+  it("scales a per-paycheck amount to a month, biweekly included", () => {
+    expect(monthlyEquivalent({ amount: 1000 })).toBe(1000);
+    expect(monthlyEquivalent({ amount: 1000, schedule: "semimonthly" })).toBe(2000);
+    expect(monthlyEquivalent({ amount: 1200, schedule: "biweekly" })).toBeCloseTo(2600, 6);
+  });
+
+  it("prefers the annual figure that was typed over a computed one", () => {
+    expect(annualEquivalent({ amount: 3269.23, schedule: "biweekly", annualAmount: 85000 })).toBe(85000);
+    expect(annualEquivalent({ amount: 3269.23, schedule: "biweekly" })).toBeCloseTo(84999.98, 2);
+  });
+});
+
+describe("leftToBudget", () => {
+  const bills = [
+    { category: "Transport", amount: 1650 },
+    { category: "Transport", amount: 1430 },
+    { category: "Utilities", amount: 90 },
+  ];
+
+  it("subtracts bills and budgets that do not overlap", () => {
+    const r = leftToBudget({ takeHome: 7000, bills, budgets: { Dining: 400 } });
+    expect(r.committed).toBe(1650 + 1430 + 90 + 400);
+    expect(r.left).toBe(7000 - 3570);
+  });
+
+  it("counts an overlapping category once, at the larger of budget and bills", () => {
+    const under = leftToBudget({ takeHome: 7000, bills, budgets: { Transport: 500 } });
+    expect(under.byCat.Transport.counted).toBe(3080);
+    expect(under.byCat.Transport.underBudgeted).toBe(true);
+    const over = leftToBudget({ takeHome: 7000, bills, budgets: { Transport: 3500 } });
+    expect(over.byCat.Transport.counted).toBe(3500);
+    expect(over.byCat.Transport.underBudgeted).toBe(false);
+  });
+
+  it("goes negative rather than clamping when more is committed than earned", () => {
+    expect(leftToBudget({ takeHome: 3000, bills, budgets: {} }).left).toBe(-170);
+  });
+
+  it("ignores a budget set to zero", () => {
+    const r = leftToBudget({ takeHome: 1000, bills: [], budgets: { Dining: 0 } });
+    expect(r.committed).toBe(0);
+    expect(r.byCat.Dining).toBeUndefined();
   });
 });
 
