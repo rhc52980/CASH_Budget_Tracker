@@ -108,8 +108,19 @@ exposed to the network. Nothing is hosted and nothing leaves the machine.
   them.
 - Dev server: `npm run dev` (Vite, port 5173) has no `/api/ledger` behind it;
   to exercise real persistence run `npm run build && npm run serve` (port 4173).
-  Tests: `npm test` (vitest); `release/` is excluded so staged copies of the
-  test files are not collected twice.
+  Tests: `npm test` (vitest, jsdom); `release/` is excluded so staged copies of
+  the test files are not collected twice.
+- Two layers of tests. `utils.test.js`/`storage.test.js`/`csv.test.js` cover
+  the pure rules. `*.test.jsx` render real components with Testing Library:
+  `AddEntry` and `BillsTab` in isolation, and `BudgetBook` end to end through
+  the real storage layer with only `fetch` stood in for the server. The
+  BudgetBook tests exist because the two worst shipped bugs — a crash opening
+  Backup & data, and a reload writing a stale ledger over the file — both
+  passed a suite that only tested pure functions; they pin "load then write
+  back unchanged", the backup panel opening, and both reconnect paths.
+  `src/test/setup.js` stubs the browser APIs jsdom lacks (matchMedia,
+  ResizeObserver, scrollIntoView, localStorage); add to it rather than
+  mocking inside a test.
 - Releases: `./make-release.sh` stages the tree, aborts if anything
   ledger-shaped got in, and writes a zip plus a Linux tarball into `release/`.
 - CI (`.github/workflows/ci.yml`) only runs `npm ci`, `npm test`, and

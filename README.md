@@ -158,7 +158,7 @@ backup file.
 ```
 npm install
 npm run dev      # dev server on :5173
-npm test         # unit tests
+npm test         # unit and component tests (vitest + jsdom)
 npm run build    # production bundle in dist/
 npm run preview  # serve the production build on :4173
 ```
