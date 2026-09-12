@@ -181,6 +181,45 @@ export default function BudgetBook() {
     });
   }, [loaded, loadProblem, data, month]);
 
+  // Auto-receive: the income counterpart to auto-pay, for a paycheck that is
+  // the same every time. isAutoPayDue only reads autoPay/varies/dueDay/
+  // createdAt, so an income entry is passed through with payDay renamed to
+  // dueDay rather than duplicating the rule.
+  useEffect(() => {
+    if (!loaded || loadProblem) return;
+    const today = todayStr();
+    const nowYm = monthKey(today);
+    if (month > nowYm) return;
+
+    const skipped = data.incomeAutoPaySkip[month] || {};
+    const received = data.incomePaid[month] || {};
+    const liveTx = new Set(data.transactions.map((t) => t.id));
+
+    const due = data.incomes.filter((inc) => isAutoPayDue(
+      { autoPay: inc.autoPay, varies: false, dueDay: inc.payDay, createdAt: inc.createdAt },
+      { month, today, paidTxId: received[inc.id], liveTxIds: liveTx, skipped: skipped[inc.id] },
+    ));
+    if (!due.length) return;
+
+    setData((d) => {
+      const added = [];
+      const map = { ...(d.incomePaid[month] || {}) };
+      due.forEach((inc) => {
+        const tx = {
+          id: uid(), type: "income", amount: inc.amount, category: inc.category,
+          date: dueDateInMonth(month, inc.payDay), note: inc.name, incomeId: inc.id, autoPaid: true,
+        };
+        added.push(tx);
+        map[inc.id] = tx.id;
+      });
+      return {
+        ...d,
+        transactions: [...d.transactions, ...added],
+        incomePaid: { ...d.incomePaid, [month]: map },
+      };
+    });
+  }, [loaded, loadProblem, data, month]);
+
   const customMap = useMemo(() => new Map(data.customCats.map((c) => [c.name, c.color])), [data.customCats]);
   const expenseCats = useMemo(() => [...EXPENSE_CATS, ...data.customCats.map((c) => c.name)], [data.customCats]);
   const allCats = useMemo(() => [...expenseCats, ...INCOME_CATS], [expenseCats]);
@@ -376,20 +415,29 @@ export default function BudgetBook() {
       id: uid(), type: "income", amount: inc.amount, category: inc.category,
       date: dueDateInMonth(month, inc.payDay), note: inc.name, incomeId: inc.id,
     };
+    const skipMonth = { ...(d.incomeAutoPaySkip[month] || {}) };
+    delete skipMonth[inc.id];
     return {
       ...d,
       transactions: [...d.transactions, tx],
       incomePaid: { ...d.incomePaid, [month]: { ...(d.incomePaid[month] || {}), [inc.id]: tx.id } },
+      incomeAutoPaySkip: { ...d.incomeAutoPaySkip, [month]: skipMonth },
     };
   });
   const unmarkIncomeReceived = (inc) => setData((d) => {
     const monthMap = { ...(d.incomePaid[month] || {}) };
     const txId = monthMap[inc.id];
     delete monthMap[inc.id];
+    // Undoing an auto-receive has to stick, or the effect above would just
+    // re-apply it on the next render
+    const skip = inc.autoPay
+      ? { ...d.incomeAutoPaySkip, [month]: { ...(d.incomeAutoPaySkip[month] || {}), [inc.id]: true } }
+      : d.incomeAutoPaySkip;
     return {
       ...d,
       transactions: d.transactions.filter((t) => t.id !== txId),
       incomePaid: { ...d.incomePaid, [month]: monthMap },
+      incomeAutoPaySkip: skip,
     };
   });
 

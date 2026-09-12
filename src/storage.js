@@ -21,6 +21,8 @@ export const DEFAULTS = {
   // month -> billId -> true. Records that the user undid an auto-pay for that
   // month, so it is not immediately re-applied.
   autoPaySkip: {},
+  // Same idea, for expected income marked auto-receive.
+  incomeAutoPaySkip: {},
 };
 
 // Shape check that's strict enough to catch corruption but loose enough to

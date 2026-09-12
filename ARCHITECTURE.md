@@ -53,6 +53,22 @@ exposed to the network. Nothing is hosted and nothing leaves the machine.
   form is already on screen above it, `focusField` puts the caret in the first
   field; it focuses before scrolling, because the other order cancels the
   in-flight smooth scroll and strands the field off-screen.
+- Recurring bills and expected income (`BillsTab.jsx`) are added once and
+  auto-pay/auto-receive on their due day thereafter — `isAutoPayDue` in
+  `utils.js` is the shared eligibility rule (never the future, never before
+  the item existed, never re-applied after the user undoes it), fed a
+  `dueDay`/`payDay` under the same name so one function serves both. Each
+  side tracks its own per-month skip map (`autoPaySkip` / `incomeAutoPaySkip`)
+  so an undone auto-payment stays undone until the next month, not forever.
+  `RecurringEditRow`'s `kind` prop ("bill" | "income") picks which extra
+  fields show — a bill can vary or track a loan payoff; income instead carries
+  an optional `gross` figure, shown next to the take-home amount but never fed
+  into a transaction. Adding an income "Enter annual" divides by 12 for the
+  monthly amount actually posted, but keeps the typed annual figure
+  (`annualAmount`/`annualGross`) so the household-income summary reads back
+  exactly what was entered rather than a monthly amount times 12 with a
+  rounding drift; editing the monthly amount afterward clears both, since
+  they'd otherwise go stale.
 - Theming: `data-theme` on `<html>` is one of light/dark/midnight/contrast;
   the stored preference may also be `auto`, resolved from `prefers-color-scheme`
   and kept live via a media-query listener. Accent is applied separately as an
