@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { T, CHART, DARK_THEMES, applyAccent } from "./theme.js";
 import { AppearanceMenu } from "./AppearanceMenu.jsx";
 import { AppCtx } from "./ctx.js";
-import { EXPENSE_CATS, INCOME_CATS, FEEDBACK_URL } from "./constants.js";
+import { EXPENSE_CATS, INCOME_CATS, feedbackHref } from "./constants.js";
 import {
   DEFAULTS, loadLedger, saveLedger, quarantine, markExported,
 } from "./storage.js";
@@ -779,7 +779,7 @@ export default function BudgetBook() {
           display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10,
           padding: "20px 2px 4px", fontSize: 11.5, color: T.mute,
         }}>
-          <a href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer"
+          <a href={feedbackHref(APP_VERSION)} target="_blank" rel="noopener noreferrer"
             title="Report a bug or request a feature on GitHub (opens in a new tab)"
             style={{ color: T.mute, textDecoration: "none", borderBottom: `1px solid ${T.line}` }}>
             Feedback

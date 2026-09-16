@@ -107,4 +107,21 @@ describe("BudgetBook", () => {
     expect(screen.getByText("Overdue")).toBeInTheDocument();
     expect(screen.getByText(/was due Sep 1/)).toBeInTheDocument();
   });
+
+  it("Feedback opens a new GitHub issue with the version, and nothing from the ledger", async () => {
+    server();
+    render(<BudgetBook />);
+    await screen.findByText("Weekly shop");
+    const link = screen.getByRole("link", { name: "Feedback" });
+    expect(link).toHaveAttribute("target", "_blank");
+    const url = new URL(link.getAttribute("href"));
+    expect(url.origin + url.pathname).toBe("https://github.com/rhc52980/CASH_Budget_Tracker/issues/new");
+    const body = url.searchParams.get("body");
+    expect(body).toMatch(/^CASH v\S+$/m);
+    // A public issue is no place for anyone's finances: not a note, not a
+    // bill name, not an amount.
+    for (const leak of ["Weekly shop", "Paycheck", "Rent", "84.12"]) {
+      expect(body).not.toContain(leak);
+    }
+  });
 });
