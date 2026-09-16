@@ -178,7 +178,8 @@ locally and attaches them to a GitHub release. The tag must match
 `package.json`, or the workflow refuses.
 
 Bug reports and feature requests: [open an issue](https://github.com/rhc52980/CASH_Budget_Tracker/issues).
-The Feedback link in the app's footer goes to the same place.
+The Feedback link in the app's footer opens a new one there, pre-filled with your
+CASH version.
 
 ## Features
 
@@ -229,10 +230,11 @@ The Feedback link in the app's footer goes to the same place.
   separation against that background
 - **Mobile-first on phones** — bottom tab bar and a floating add button under 640px
 - **Backup nudges** — a gentle reminder when your last export is more than 30 days old
-- **Feedback link** — a Feedback link in the footer opens the project's GitHub
-  Issues page for bug reports and feature requests. The repository must be public
-  with Issues enabled for anyone other than the owner to reach it; the URL lives in
-  `FEEDBACK_URL` in `src/constants.js`.
+- **Feedback link** — a Feedback link in the footer opens a new GitHub issue,
+  pre-filled with the CASH version and your browser and never anything from your
+  ledger; you see the whole form before posting. The repository must be public
+  with Issues enabled for anyone other than the owner to reach it; the address
+  and the pre-fill live in `FEEDBACK_URL` and `feedbackHref` in `src/constants.js`.
 - **Installable PWA** — add it to your phone or desktop; works offline (production build)
 
 ## What it can't do

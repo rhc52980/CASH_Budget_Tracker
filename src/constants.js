@@ -1,8 +1,24 @@
 export const STORE_KEY = "budget-book-v1";
 
-// Where the Feedback link goes. The repository must be public with Issues
-// enabled for anyone other than the owner to reach this.
-export const FEEDBACK_URL = "https://github.com/rhc52980/CASH_Budget_Tracker/issues";
+// Where the Feedback link goes: a new GitHub issue. The repository must be
+// public with Issues enabled for anyone other than the owner to reach this.
+export const FEEDBACK_URL = "https://github.com/rhc52980/CASH_Budget_Tracker/issues/new";
+
+// The Feedback link's full address. The new-issue form is pre-filled with a
+// short skeleton, the CASH version and the browser, and never anything from
+// the ledger: the reporter sees it all before posting, but a public issue is
+// no place for anyone's finances.
+export function feedbackHref(version) {
+  const body = [
+    "**What happened?**", "", "",
+    "**What did you expect instead?**", "", "",
+    "**Steps to reproduce**", "", "",
+    "---",
+    `CASH v${version}`,
+    typeof navigator === "undefined" ? "" : navigator.userAgent,
+  ].join("\n");
+  return `${FEEDBACK_URL}?body=${encodeURIComponent(body)}`;
+}
 
 export const EXPENSE_CATS = [
   "Housing", "Groceries", "Dining", "Transport", "Utilities",
