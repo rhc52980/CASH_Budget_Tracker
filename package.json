@@ -1,6 +1,6 @@
 {
   "name": "cash-budget-tracker",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "private": true,
   "description": "CASH — Count All Spending Habits. A local-only personal budget and ledger: bills, income, budgets, goals, accounts. Your data stays in a file you own.",
   "license": "MIT",
